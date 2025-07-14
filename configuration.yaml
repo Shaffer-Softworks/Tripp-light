@@ -1,0 +1,6 @@
+tripp_lite_srcool:
+  host: 192.168.1.50
+  username: admin
+  password: yourpass
+  # port: 23           # optional; 22 works too if you enable SSH
+  name: "Server‑Room A/C"
