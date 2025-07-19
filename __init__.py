@@ -1,29 +1,54 @@
-from __future__ import annotations
-import voluptuous as vol
+import logging
+from datetime import timedelta
+
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
-from homeassistant.helpers import discovery, config_validation as cv
-from .const import DOMAIN, DEFAULT_PORT
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.Schema(
-            {
-                vol.Required(CONF_HOST): cv.string,
-                vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-                vol.Required(CONF_USERNAME): cv.string,
-                vol.Required(CONF_PASSWORD): cv.string,
-                vol.Optional("name", default="SRCOOL AC"): cv.string,
-            }
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
+from .const import DOMAIN
+from .srcool_telnet import SRCOOLClient
 
-async def async_setup(hass: HomeAssistant, config: dict):
-    conf = config[DOMAIN]
-    hass.data[DOMAIN] = conf
-    hass.async_create_task(
-        discovery.async_load_platform(hass, "climate", DOMAIN, conf, config)
+_LOGGER = logging.getLogger(__name__)
+SCAN_INTERVAL = timedelta(seconds=30)
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Tripp Lite SRCOOL from a config entry."""
+    data = entry.data
+    client = SRCOOLClient(
+        data["host"],
+        data.get("port", 23),
+        data["username"],
+        data["password"],
     )
+
+    async def _async_update():
+        try:
+            # Run blocking telnetlib call in executor
+            return await hass.async_add_executor_job(client.get_status)
+        except Exception as err:
+            raise UpdateFailed(f"Telnet update failed: {err}") from err
+
+    coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name="Tripp Lite SRCOOL",
+        update_method=_async_update,
+        update_interval=SCAN_INTERVAL,
+    )
+
+    await coordinator.async_config_entry_first_refresh()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "client": client,
+        "coordinator": coordinator,
+    }
+
+    await hass.config_entries.async_forward_entry_setups(entry, ["climate"])
     return True
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["climate"])
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+    return unload_ok
