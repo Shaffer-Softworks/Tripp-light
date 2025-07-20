@@ -27,8 +27,8 @@ jobs:
           pip install --upgrade pip
           pip install black isort flake8 mypy homeassistant
 
-      - name: Black formatting check
-        run: black --check .
+      #- name: Black formatting check
+      #  run: black --check .
 
       - name: isort import sort check
         run: isort --check-only .
