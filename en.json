@@ -1,0 +1,21 @@
+{
+    "config": {
+      "step": {
+        "user": {
+          "title": "Connect to SRCOOL",
+          "description": "Enter connection details for your SRCOOL device."
+        },
+        "reauth_confirm": {
+          "title": "Reauthorize SRCOOL",
+          "description": "Password no longer works. Enter a new password."
+        }
+      },
+      "error": {
+        "auth": "Failed to connect or log in. Check credentials."
+      },
+      "abort": {
+        "reauth_successful": "Reauthorization successful"
+      }
+    }
+  }
+  
