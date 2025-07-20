@@ -1,6 +1,6 @@
 # Tripp Lite SRCOOL Custom Integration
 
-![Integration Icon]([https://img.shields.io/badge/icon–air--conditioner-blue?style=flat-square](https://github.com/sickkick/Tripp-light/blob/main/icon.png))
+![Tripp Lite SRCOOL Icon](icon.png)
 
 > Control and monitor your Tripp Lite SR(X)COOL series portable air‐conditioner directly from Home Assistant over Telnet.
 
@@ -19,9 +19,9 @@
   - Auto Fan Speed (On / Off)  
 - **Device info** exposed as entity attributes and sensors  
   - Device Name, Vendor, Product, Protocol, Installation Date, State, Type, Port Mode, Port Name  
-- **Separate sensors** for each status field (water status, quiet mode, fan speeds, etc.)  
+- **Separate sensors** for each status field (water status, quiet mode, auto‐fan, fan speed, etc.)  
 - **Config flow**–driven setup (no YAML) with reauthentication support  
-- **Built‑in icon** using Material Design’s `mdi:air-conditioner`  
+- **Built‑in icon** displayed above using `icon.png`  
 
 ---
 
@@ -39,3 +39,4 @@
    ```bash
    mkdir -p config/custom_components/tripp_lite_srcool
    cp -R tripp_lite_srcool/* config/custom_components/tripp_lite_srcool/
+
