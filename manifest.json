@@ -6,6 +6,5 @@
   "requirements": [],
   "codeowners": ["@yourgithub"],
   "iot_class": "local_polling",
-  "icon": "icon.png"
+  "icon": "mdi:air-conditioner"
 }
-

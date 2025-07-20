@@ -13,20 +13,20 @@ SCAN_INTERVAL = timedelta(seconds=30)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tripp Lite SRCOOL from a config entry."""
-    data = entry.data
-    client = SRCOOLClient(
-        data["host"],
-        data.get("port", 23),
-        data["username"],
-        data["password"],
-    )
+    host = entry.data["host"]
+    port = entry.data.get("port", 23)
+    username = entry.data["username"]
+    password = entry.data["password"]
+
+    client = SRCOOLClient(host, port, username, password)
 
     async def _async_update():
+        _LOGGER.debug("Coordinator polling SRCOOL status...")
         try:
-            # Run blocking telnetlib call in executor
             return await hass.async_add_executor_job(client.get_status)
         except Exception as err:
-            raise UpdateFailed(f"Telnet update failed: {err}") from err
+            _LOGGER.error("Error updating SRCOOL: %s", err)
+            raise UpdateFailed(f"SRCOOL update failed: {err}") from err
 
     coordinator = DataUpdateCoordinator(
         hass,
@@ -36,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=SCAN_INTERVAL,
     )
 
+    # Initial poll
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
@@ -43,11 +44,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
     }
 
-    await hass.config_entries.async_forward_entry_setups(entry, ["climate"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["climate", "sensor"])
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["climate"])
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
