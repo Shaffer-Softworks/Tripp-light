@@ -1,6 +1,6 @@
 # Tripp Lite SRCOOL Custom Integration
 
-![Integration Icon](https://img.shields.io/badge/icon–air--conditioner-blue?style=flat-square)
+![Integration Icon]([https://img.shields.io/badge/icon–air--conditioner-blue?style=flat-square](https://github.com/sickkick/Tripp-light/blob/main/icon.png))
 
 > Control and monitor your Tripp Lite SR(X)COOL series portable air‐conditioner directly from Home Assistant over Telnet.
 
