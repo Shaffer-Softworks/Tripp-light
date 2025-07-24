@@ -1,10 +1,10 @@
 {
   "domain": "tripp_lite_srcool",
   "name": "Tripp Lite SRCOOL",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "config_flow": true,
   "requirements": [],
-  "codeowners": ["@yourgithub"],
+  "codeowners": ["@sickkick"],
+  "documentation": "https://github.com/sickkick/Tripp-light",
   "iot_class": "local_polling",
-  "icon": "mdi:air-conditioner"
 }

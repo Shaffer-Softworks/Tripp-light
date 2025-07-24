@@ -43,6 +43,36 @@ class SRCOOLClient:
         tn.close()
         _LOGGER.debug("Connection closed.")
 
+    def get_diagnostics(self) -> dict:
+        """Fetch and parse the About/Diagnostics screen (menu 5)."""
+        _LOGGER.debug("Fetching diagnostics…")
+        tn = self._login()
+        try:
+            tn.write(b"5\r\n")  # About
+            raw = tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT).decode(errors="ignore")
+        finally:
+            self._logout(tn)
+
+        _LOGGER.debug("About Screen:\n%s", raw)
+
+        def extract(label: str, raw: str, default=None):
+            for line in raw.splitlines():
+                if label in line:
+                    # grab everything after the first colon
+                    val = line.split(":", 1)[1].strip()
+                    return val
+            return default
+
+        return {
+            "os":                   extract("OS", raw),
+            "agent_type":           extract("Agent Type", raw),
+            "mac_address":          extract("MAC Address", raw),
+            "card_serial_number":   extract("Card Serial Number", raw),
+            "driver_version":       extract("Driver Version", raw),
+            "engine_version":       extract("Engine Version", raw),
+            "driver_file_status":   extract("Driver File Status", raw),
+        }
+
     # -------------------------------
     # Get combined device info and status
     # -------------------------------
@@ -50,11 +80,12 @@ class SRCOOLClient:
         _LOGGER.debug("Polling SRCOOL status...")
         tn = self._login()
         try:
-            # Menu navigation for status
+            # --- Device Info Screen ---
             tn.write(b"1\r\n")  # Devices
             device_info_raw = tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT).decode(errors="ignore")
 
-            tn.write(b"1\r\n")  # Status
+            # --- Status Screen ---
+            tn.write(b"1\r\n")  # Status submenu
             status_raw = tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT).decode(errors="ignore")
         finally:
             self._logout(tn)
@@ -109,7 +140,6 @@ class SRCOOLClient:
                                 0,
                             ),
             "auto_fan":     (extract("Auto Fan Speed", status_raw) or "off").lower(),
-            "target_temp":  None,
         }
 
         # precise Fan Speed parsing
@@ -124,8 +154,42 @@ class SRCOOLClient:
             fan_value = "unknown"
         status["fan"] = fan_value
 
+        # ─── Step B: Fetch Current “Set-Point” Temperature ───────────────────────
+        tn = self._login()
+        try:
+            tn.write(b"1\r\n")  # Devices
+            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+
+            tn.write(b"3\r\n")  # Controls
+            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+
+            tn.write(b"2\r\n")  # Set Set Point
+            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+
+            tn.write(b"1\r\n")  # Temperature (F)
+            setpoint_raw = tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT).decode(errors="ignore")
+            _LOGGER.debug("Set‑Point Screen:\n%s", setpoint_raw)
+        finally:
+            self._logout(tn)
+
+        # Parse "Value : 65" from the detail screen
+        m = re.search(r"Value\s*:\s*([0-9]+(?:\.[0-9]+)?)", setpoint_raw)
+        if m:
+            status["target_temp"] = float(m.group(1))
+        else:
+            _LOGGER.warning("Could not parse target_temp from screen")
+
+        # ─── Merge & Return ─────────────────────────────────────────────────────
         merged = {**device_info, **status}
-        _LOGGER.debug("Parsed merged status: %s", merged)
+        
+        # ─── Now merge diagnostics ────────────────────────────
+        try:
+            diag = self.get_diagnostics()
+            merged.update(diag)
+        except Exception as err:
+            _LOGGER.error("Error fetching diagnostics: %s", err)
+
+        _LOGGER.debug("Final merged status: %s", merged)
         return merged
         
     # -------------------------------
@@ -145,8 +209,7 @@ class SRCOOLClient:
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
             tn.write(str(int(temp_f)).encode('ascii') + b"\r\n")
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            tn.write(b"E\r\n")  # Execute
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            _LOGGER.info(str(int(temp_f)).encode('ascii') + b"\r\n")
             _LOGGER.info("Target temperature set successfully.")
         finally:
             self._logout(tn)
@@ -155,7 +218,7 @@ class SRCOOLClient:
     # Set fan speed
     # -------------------------------
     def set_fan(self, speed: str):
-        fan_map = {"low": "1", "medium": "2", "high": "3", "auto": "4"}
+        fan_map = {"low": "1", "medium": "2", "high": "3", "auto": "0"}
         code = fan_map.get(speed.lower())
         if code is None:
             _LOGGER.error("Invalid fan speed: %s", speed)
@@ -170,9 +233,6 @@ class SRCOOLClient:
             tn.write(b"4\r\n")  # Set Fan Speed
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
             tn.write(code.encode('ascii') + b"\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            tn.write(b"E\r\n")  # Execute
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
             _LOGGER.info("Fan speed set successfully.")
         finally:
             self._logout(tn)
@@ -186,10 +246,18 @@ class SRCOOLClient:
         # Placeholder logic (adjust if menu structure known):
         tn = self._login()
         try:
-            # For now, just navigate to Controls; you might need to add specific steps here
-            tn.write(b"1\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            # Implement on/off menu sequence here...
-            _LOGGER.warning("set_mode not fully implemented - adjust menu navigation.")
+            if not on:
+                tn.write(b"1\r\n")  # Devices
+                tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+                tn.write(b"3\r\n")  # Controls
+                tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+                tn.write(b"3\r\n")  # Shut down device
+                tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+                tn.write(b"Y\r\n")  # Yes to continue
+                tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+                tn.write(b"E\r\n")  # Execute
+                tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            else:
+                tn.write(b"5\r\n")  # example
         finally:
             self._logout(tn)
