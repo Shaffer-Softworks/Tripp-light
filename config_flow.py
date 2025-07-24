@@ -20,7 +20,6 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
-
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tripp Lite SRCOOL."""
 
@@ -126,4 +125,3 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             step_id="init",
             data_schema=vol.Schema({}),
         )
-

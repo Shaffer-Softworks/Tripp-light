@@ -1,4 +1,5 @@
 import logging
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import ClimateEntityFeature, HVACMode
 from homeassistant.const import UnitOfTemperature
@@ -19,6 +20,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
     def __init__(self, hass, client, coordinator):
         super().__init__(coordinator)
+        self._attr_unique_id = f"tripp_lite_srcool_{client._host}_{client._port}"
         self.hass = hass
         self._client = client
         self._attr_supported_features = (
@@ -31,6 +33,19 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
 
         # initialize target temperature holder
         self._target_temperature: float | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device registry information."""
+        data = self.coordinator.data
+        return {
+            # this tuple must be unique per physical device
+            "identifiers": {(DOMAIN, self.unique_id)},
+            "name": data.get("device_name") or self.name,
+            "manufacturer": data.get("vendor"),
+            "model": data.get("product"),
+            "sw_version": data.get("date_installed"),
+        }
 
     @property
     def extra_state_attributes(self):
@@ -61,7 +76,6 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
             "sw_version":   data.get("date_installed"),
         }
 
-
     @property
     def hvac_mode(self):
         mode = self.coordinator.data.get("mode")
@@ -82,6 +96,8 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the last user‐set target, or current temperature if unset."""
+        self._target_temperature = self.coordinator.data.get("target_temp")
+
         if self._target_temperature is not None:
             return self._target_temperature
         # seed the slider with the current temperature
