@@ -1,6 +1,8 @@
+"""Climate platform for Tripp Lite SRCOOL."""
 import logging
-from datetime import timedelta
 
+from datetime import timedelta
+import telnetlib  # to catch ConnectionError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -11,22 +13,35 @@ from .srcool_telnet import SRCOOLClient
 _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(seconds=30)
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tripp Lite SRCOOL from a config entry."""
-    host = entry.data["host"]
-    port = entry.data.get("port", 23)
-    username = entry.data["username"]
-    password = entry.data["password"]
+    data = entry.data
+    client = SRCOOLClient(
+        data["host"],
+        data.get("port", 23),
+        data["username"],
+        data["password"]
+    )
 
-    client = SRCOOLClient(host, port, username, password)
+    # Open the Telnet session once at startup
+    try:
+        await hass.async_add_executor_job(client.connect)
+    except ConnectionError as err:
+        _LOGGER.error("Initial SRCOOL login failed: %s", err)
+        raise ConfigEntryNotReady from err
 
     async def _async_update():
-        _LOGGER.debug("Coordinator polling SRCOOL status...")
         try:
+            # synchronous get_status in executor
             return await hass.async_add_executor_job(client.get_status)
+        except ConnectionError as err:
+            _LOGGER.warning(
+                "SRCOOL connection lost: %s – keeping old data", err)
+            return coordinator.data or {}
         except Exception as err:
-            _LOGGER.error("Error updating SRCOOL: %s", err)
-            raise UpdateFailed(f"SRCOOL update failed: {err}") from err
+            _LOGGER.error("Unexpected error polling SRCOOL: %s", err)
+            raise UpdateFailed(err)
 
     coordinator = DataUpdateCoordinator(
         hass,
@@ -47,8 +62,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, ["climate", "sensor"])
     return True
 
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["climate"])
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["climate", "sensor"])
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
