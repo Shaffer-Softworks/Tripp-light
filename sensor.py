@@ -1,3 +1,4 @@
+"""Sensor platform for Tripp Lite SRCOOL climate devices."""
 import logging
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.components.sensor import SensorEntity
@@ -47,6 +48,7 @@ DIAGNOSTIC_KEYS = {
     "engine_version",
     "driver_file_status",
 }
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up SRCOOL status sensors from a config entry."""
