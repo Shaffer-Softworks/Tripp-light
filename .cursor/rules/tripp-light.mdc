@@ -5,13 +5,19 @@ alwaysApply: true
 
 # Tripp-light (Tripp Lite SRCOOL)
 
-Home Assistant **custom integration** for the Tripp Lite **SRCOOLNET** SNMP Webcard Interface Module over Telnet. Does not support SRCOOL units without this adapter.
+Home Assistant **custom integration** for the Tripp Lite **SRCOOLNET** SNMP Webcard Interface Module over Telnet.
+
+## Supported hardware
+
+- **Required adapter:** [Tripp Lite SRCOOLNET](https://tripplite.eaton.com/snmp-webcard-interface-module-remote-cooling-management-srcool12k-srxcool12k~SRCOOLNET) — SNMP Webcard Interface Module for Remote Cooling Management (SRCOOL12K / SRXCOOL12K).
+- **Not supported:** Direct telnet to SRCOOL units without the SRCOOLNET adapter. Do **not** document or imply support for SRCOOLNETLX or generic SR(X)COOL units.
+- User-facing docs (`README.md`, `translations/en.json`) must name **SRCOOLNET** and link to the Eaton product page above.
 
 ## Distribution
 
-- **HACS custom repository only** — do **not** submit to `hacs/default` unless the user explicitly asks.
-- Repos: `https://github.com/sickkick/Tripp-light`, `Shaffer-Softworks/Tripp-light` (fork)
-- Users add via HACS → Integrations → Custom repositories → category **Integration**.
+- **Canonical GitHub repo:** [Shaffer-Softworks/Tripp-light](https://github.com/Shaffer-Softworks/Tripp-light) (case-sensitive; use this name in `hacs/default` PRs).
+- **HACS default inclusion:** open PR [hacs/default#7959](https://github.com/hacs/default/pull/7959) via fork `sickkick/HACS` branch `add-tripp-lite-srcool`. See `.cursor/rules/hacs-default-pr.mdc`.
+- Until merged: users add via HACS → Integrations → Custom repositories → URL `https://github.com/Shaffer-Softworks/Tripp-light`, category **Integration**.
 
 ## Repository layout
 
@@ -97,7 +103,7 @@ Python **3.11** on `ubuntu-latest`:
 
 Forks must set on GitHub or HACS validation fails:
 
-- **Description** (e.g. “Home Assistant custom integration for Tripp Lite SRCOOL…”)
+- **Description** (e.g. “Home Assistant custom integration for Tripp Lite SRCOOLNET Remote Cooling Management over Telnet.”)
 - **Topics:** `home-assistant`, `homeassistant`, `hacs`, `hacs-integration`
 
 ## When changing the integration
@@ -109,5 +115,5 @@ Forks must set on GitHub or HACS validation fails:
 
 ## Out of scope unless requested
 
-- PR to `hacs/default`
+- New or duplicate PRs to `hacs/default` (one open: #7959)
 - PR to `home-assistant/brands` (local `brand/` preferred for custom repo)
