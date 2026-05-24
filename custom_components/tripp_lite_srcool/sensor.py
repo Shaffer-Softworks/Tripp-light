@@ -6,7 +6,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DIAGNOSTIC_KEYS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,16 +37,6 @@ SENSOR_TYPES: dict[str, tuple[str, str, str | None]] = {
     "driver_version": ("Driver Version", "mdi:numeric", None),
     "engine_version": ("Engine Version", "mdi:numeric", None),
     "driver_file_status": ("Driver File Status", _INFO, None),
-}
-
-DIAGNOSTIC_KEYS = {
-    "os",
-    "agent_type",
-    "mac_address",
-    "card_serial_number",
-    "driver_version",
-    "engine_version",
-    "driver_file_status",
 }
 
 
