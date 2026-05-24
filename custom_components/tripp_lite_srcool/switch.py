@@ -24,10 +24,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class SRCOOLDehumidifyingSwitch(CoordinatorEntity, SwitchEntity):
-    """Switch to enable or disable dehumidifying mode."""
+    """Switch to enable or disable dehumidify mode on the AC unit."""
 
-    _attr_icon = "mdi:air-humidifier"
-    _attr_name = "Dehumidifying"
+    _attr_icon = "mdi:water-percent"
+    _attr_name = "Dehumidify Mode"
 
     def __init__(self, client, coordinator):
         """Initialize the dehumidifying switch."""

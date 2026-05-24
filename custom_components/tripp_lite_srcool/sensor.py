@@ -6,7 +6,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DIAGNOSTIC_KEYS, DOMAIN
+from .const import DIAGNOSTIC_ENTITY_KEYS, DIAGNOSTIC_KEYS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ SENSOR_TYPES: dict[str, tuple[str, str, str | None]] = {
     "current_temp": ("Return Air Temperature", "mdi:thermometer", _F),
     "target_temp": ("Target Temperature", "mdi:thermometer", _F),
     "dehumidifying_status": (
-        "Dehumidifying Status", "mdi:air-humidifier", None,
+        "Dehumidifying Status", "mdi:water-percent", None,
     ),
     "units": ("Units", "mdi:ruler", None),
     "os": ("OS", _INFO, None),
@@ -78,7 +78,7 @@ class SRCoolStatusSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = name
         self._attr_native_unit_of_measurement = unit
         self._attr_icon = icon
-        if self._key in DIAGNOSTIC_KEYS:
+        if self._key in DIAGNOSTIC_KEYS | DIAGNOSTIC_ENTITY_KEYS:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         # Will be auto‑linked to the same device as other platform entities
 

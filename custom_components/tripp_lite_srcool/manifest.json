@@ -3,9 +3,9 @@
   "name": "Tripp Lite SRCOOL",
   "codeowners": ["@sickkick"],
   "config_flow": true,
-  "documentation": "https://github.com/sickkick/Tripp-light",
+  "documentation": "https://github.com/Shaffer-Softworks/Tripp-light",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/sickkick/Tripp-light/issues",
+  "issue_tracker": "https://github.com/Shaffer-Softworks/Tripp-light/issues",
   "requirements": [],
-  "version": "0.5.5"
+  "version": "0.5.6"
 }
