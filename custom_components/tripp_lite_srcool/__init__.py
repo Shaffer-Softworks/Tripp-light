@@ -32,9 +32,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         poll_count += 1
         include_diagnostics = poll_count == 1 or poll_count % diag_every == 0
         try:
-            return await hass.async_add_executor_job(
-                partial(client.get_status, include_diagnostics=include_diagnostics)
+            fetch = partial(
+                client.get_status,
+                include_diagnostics=include_diagnostics,
             )
+            return await hass.async_add_executor_job(fetch)
         except ConnectionError as err:
             _LOGGER.warning(
                 "SRCOOL connection lost: %s – keeping old data", err)
@@ -60,7 +62,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
     }
 
-    await hass.config_entries.async_forward_entry_setups(entry, ["climate", "sensor"])
+    await hass.config_entries.async_forward_entry_setups(
+        entry, ["climate", "sensor"]
+    )
     return True
 
 

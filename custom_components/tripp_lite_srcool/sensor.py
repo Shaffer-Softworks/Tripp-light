@@ -10,34 +10,33 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# key -> (Friendly Name, Unit)
+# key -> (friendly name, icon, unit)
+_F = UnitOfTemperature.FAHRENHEIT
+_INFO = "mdi:information-variant"
 SENSOR_TYPES: dict[str, tuple[str, str, str | None]] = {
-    # Device info
-    "device_name":    ("Device Name",          "mdi:information-variant", None),
-    "vendor":         ("Vendor",               "mdi:label", None),
-    "product":        ("Product",              "mdi:label", None),
-    "protocol":       ("Protocol",             "mdi:protocol", None),
-    "date_installed": ("Date Installed",       "mdi:calendar", None),
-    "state":          ("Device State",         "mdi:state-machine", None),
-    "type":           ("Device Type",          "mdi:power-socket-us", None),
-    "port_mode":      ("Port Mode",            "mdi:serial-port", None),
-    "port_name":      ("Port Name",            "mdi:label", None),
-    # Live status
-    "water_status":   ("Water Status",         "mdi:water-circle", None),
-    "quiet_mode":     ("Quiet Mode",           "mdi:information-variant", None),
-    "auto_fan":       ("Auto Fan Speed",       "mdi:fan-auto", None),
-    "fan":            ("Fan Speed",            "mdi:fan", None),
-    "mode":           ("Operating Mode",       "mdi:thermostat", None),
-    "current_temp":   ("Return Air Temperature", "mdi:thermometer", UnitOfTemperature.FAHRENHEIT),
-    "target_temp":    ("Target Temperature",   "mdi:thermometer", UnitOfTemperature.FAHRENHEIT),
-    # Diagnostics keys:
-    "os":                 ("OS",                   "mdi:information-variant", None),
-    "agent_type":         ("Agent Type",           "mdi:information-variant", None),
-    "mac_address":        ("MAC Address",          "mdi:information-variant", None),
-    "card_serial_number": ("Card Serial Number",   "mdi:numeric", None),
-    "driver_version":     ("Driver Version",       "mdi:numeric", None),
-    "engine_version":     ("Engine Version",       "mdi:numeric", None),
-    "driver_file_status": ("Driver File Status",   "mdi:information-variant", None),
+    "device_name": ("Device Name", _INFO, None),
+    "vendor": ("Vendor", "mdi:label", None),
+    "product": ("Product", "mdi:label", None),
+    "protocol": ("Protocol", "mdi:protocol", None),
+    "date_installed": ("Date Installed", "mdi:calendar", None),
+    "state": ("Device State", "mdi:state-machine", None),
+    "type": ("Device Type", "mdi:power-socket-us", None),
+    "port_mode": ("Port Mode", "mdi:serial-port", None),
+    "port_name": ("Port Name", "mdi:label", None),
+    "water_status": ("Water Status", "mdi:water-circle", None),
+    "quiet_mode": ("Quiet Mode", _INFO, None),
+    "auto_fan": ("Auto Fan Speed", "mdi:fan-auto", None),
+    "fan": ("Fan Speed", "mdi:fan", None),
+    "mode": ("Operating Mode", "mdi:thermostat", None),
+    "current_temp": ("Return Air Temperature", "mdi:thermometer", _F),
+    "target_temp": ("Target Temperature", "mdi:thermometer", _F),
+    "os": ("OS", _INFO, None),
+    "agent_type": ("Agent Type", _INFO, None),
+    "mac_address": ("MAC Address", _INFO, None),
+    "card_serial_number": ("Card Serial Number", "mdi:numeric", None),
+    "driver_version": ("Driver Version", "mdi:numeric", None),
+    "engine_version": ("Engine Version", "mdi:numeric", None),
+    "driver_file_status": ("Driver File Status", _INFO, None),
 }
 
 DIAGNOSTIC_KEYS = {
@@ -68,7 +67,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class SRCoolStatusSensor(CoordinatorEntity, SensorEntity):
     """Sensor for a single SRCOOL status or device info field."""
 
-    def __init__(self, coordinator, key: str, name: str, icon: str, unit: str | None):
+    def __init__(
+        self,
+        coordinator,
+        key: str,
+        name: str,
+        icon: str,
+        unit: str | None,
+    ):
         super().__init__(coordinator)
         self._key = key
         self._attr_name = name
@@ -80,7 +86,7 @@ class SRCoolStatusSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Tie this sensor into the same SRCOOL device as the climate entity."""
+        """Return device info shared with the climate entity."""
         data = self.coordinator.data or {}
         port = data.get("port_name") or "unknown_port"
         return {

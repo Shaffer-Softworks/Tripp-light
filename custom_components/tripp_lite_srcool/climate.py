@@ -58,7 +58,7 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return device registry info so all entities collapse under one device."""
+        """Return device registry info for the SRCOOL device."""
         data = self.coordinator.data or {}
         port = data.get("port_name") or self._entry_id
         return DeviceInfo(
@@ -131,7 +131,9 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
         """Handle UI temperature changes."""
         temp = float(kwargs.get("temperature"))
         _LOGGER.debug("UI set temperature → %s°F", temp)
-        await self.hass.async_add_executor_job(self._client.set_target_temp, temp)
+        await self.hass.async_add_executor_job(
+            self._client.set_target_temp, temp
+        )
         self._target_temperature = temp
         self._merge_coordinator_data(target_temp=temp)
         self.async_write_ha_state()

@@ -41,13 +41,16 @@ class TrippLiteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input["password"],
             )
             try:
-                await self.hass.async_add_executor_job(client.verify_connection)
+                await self.hass.async_add_executor_job(
+                    client.verify_connection
+                )
             except ConnectionError:
                 _LOGGER.exception("SRCOOL cannot_connect")
                 errors["base"] = "cannot_connect"
             else:
                 return self.async_create_entry(
-                    title=f"SRCOOL {user_input['host']}", data=user_input
+                    title=f"SRCOOL {user_input['host']}",
+                    data=user_input,
                 )
 
         return self.async_show_form(
@@ -84,12 +87,16 @@ class TrippLiteOptionsFlowHandler(config_entries.OptionsFlow):
                 user_input["password"],
             )
             try:
-                await self.hass.async_add_executor_job(client.verify_connection)
+                await self.hass.async_add_executor_job(
+                    client.verify_connection
+                )
             except ConnectionError:
                 _LOGGER.exception("SRCOOL cannot_connect")
                 errors["base"] = "cannot_connect"
             else:
-                return self.async_create_entry(title="", data=user_input)
+                return self.async_create_entry(
+                    title="", data=user_input
+                )
 
         current = {}
         current.update(self._config_entry.data or {})
@@ -98,7 +105,9 @@ class TrippLiteOptionsFlowHandler(config_entries.OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required("host", default=current.get("host")): str,
-                vol.Required("port", default=current.get("port", DEFAULT_PORT)): int,
+                vol.Required(
+                    "port", default=current.get("port", DEFAULT_PORT)
+                ): int,
                 vol.Required("username", default=current.get("username")): str,
                 vol.Required("password", default=current.get("password")): str,
             }
