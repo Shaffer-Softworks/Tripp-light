@@ -69,10 +69,15 @@ class SRCOOLClient:
         with self._lock:
             self._set_fan_unlocked(speed)
 
-    def set_mode(self, on: bool) -> None:
-        """Set the operating mode to on or off."""
+    def shutdown(self) -> None:
+        """Shut down the cooling unit (telnet has no power-on command)."""
         with self._lock:
-            self._set_mode_unlocked(on)
+            self._shutdown_unlocked()
+
+    def set_dehumidifying(self, enabled: bool) -> None:
+        """Enable or disable dehumidifying mode."""
+        with self._lock:
+            self._set_dehumidifying_unlocked(enabled)
 
     def _connect_unlocked(self) -> None:
         """(Re)establish session; caller must hold _lock."""
@@ -150,55 +155,75 @@ class SRCOOLClient:
         tn.write(b"M\r\n")
         tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
 
+    def _read_devices_screen(
+        self, tn: telnetlib.Telnet, submenu: bytes
+    ) -> str:
+        """Navigate M → Devices → submenu and return the screen text."""
+        self._go_main_menu(tn)
+        tn.write(b"1\r\n")
+        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+        tn.write(submenu)
+        return tn.read_until(
+            PROMPT_READY, TELNET_TIMEOUT
+        ).decode("ascii", "ignore")
+
+    @staticmethod
+    def _extract_field(
+        label: str,
+        raw: str,
+        cast=lambda v: v,
+        default=None,
+    ):
+        """Parse a labeled column from a telnet status screen."""
+        for line in raw.splitlines():
+            if label in line:
+                idx = line.lower().find(label.lower())
+                colon = line.find(":", idx)
+                if colon == -1:
+                    continue
+                after = line[colon + 1:].strip()
+                parts = re.split(r"\s{2,}", after)
+                val = parts[0].strip()
+                try:
+                    return cast(val)
+                except Exception:
+                    return default
+        return default
+
     def _get_status_unlocked(
         self, *, include_diagnostics: bool
     ) -> Dict[str, Any]:
         tn = self._ensure_connection_unlocked()
 
         try:
-            self._go_main_menu(tn)
-
-            tn.write(b"1\r\n")  # Devices
-            info_raw = tn.read_until(
-                PROMPT_READY, TELNET_TIMEOUT).decode("ascii", "ignore")
-
-            tn.write(b"1\r\n")  # Status submenu
-            status_raw = tn.read_until(
-                PROMPT_READY, TELNET_TIMEOUT).decode("ascii", "ignore")
+            status_raw = self._read_devices_screen(tn, b"1\r\n")
+            id_raw = self._read_devices_screen(tn, b"2\r\n")
+            prefs_raw = self._read_devices_screen(tn, b"5\r\n")
         except Exception as err:
             _LOGGER.warning("get_status step A failed, reconnecting: %s", err)
             self._disconnect_unlocked()
             raise
 
-        _LOGGER.debug("Info screen:\n%s", info_raw)
         _LOGGER.debug("Status screen:\n%s", status_raw)
+        _LOGGER.debug("Identification screen:\n%s", id_raw)
+        _LOGGER.debug("Preferences screen:\n%s", prefs_raw)
 
-        def extract(label: str, raw: str, cast=lambda v: v, default=None):
-            for line in raw.splitlines():
-                if label in line:
-                    idx = line.lower().find(label.lower())
-                    colon = line.find(":", idx)
-                    if colon == -1:
-                        continue
-                    after = line[colon + 1:].strip()
-                    parts = re.split(r"\s{2,}", after)
-                    val = parts[0].strip()
-                    try:
-                        return cast(val)
-                    except Exception:
-                        return default
-            return default
+        extract = self._extract_field
 
         device_info = {
-            "device_name":    extract("Device Name",    info_raw),
-            "vendor":         extract("Vendor",         info_raw),
-            "product":        extract("Product",        info_raw),
-            "protocol":       extract("Protocol",       info_raw),
-            "date_installed": extract("Date Installed", info_raw),
-            "state":          extract("State",          info_raw),
-            "type":           extract("Type",           info_raw),
-            "port_mode":      extract("Port Mode",      info_raw),
-            "port_name":      extract("Port Name",      info_raw),
+            "device_name":    extract("Device Name",    id_raw),
+            "location":       extract("Location",       id_raw),
+            "region":         extract("Region",         id_raw),
+            "vendor":         extract("Vendor",         id_raw),
+            "product":        extract("Product",        id_raw),
+            "protocol":       extract("Protocol",       id_raw),
+            "date_installed": extract("Date Installed", id_raw),
+            "state":          extract("State",          id_raw),
+            "type":           extract("Type",           id_raw),
+            "port_mode":      extract("Port Mode",      id_raw),
+            "port_name":      extract("Port Name",      id_raw),
+            "serial_number":  extract("Serial Number",  id_raw),
+            "asset_tag":      extract("Asset Tag",      id_raw),
         }
 
         status = {
@@ -228,6 +253,10 @@ class SRCOOLClient:
             _LOGGER.warning("Could not parse Fan Speed in status screen")
             fan_value = "unknown"
         status["fan"] = fan_value
+
+        dehumid = extract("Dehumidifying Status", prefs_raw) or "unknown"
+        status["dehumidifying_status"] = dehumid.lower()
+        status["units"] = extract("Units", prefs_raw)
 
         try:
             self._go_main_menu(tn)
@@ -349,7 +378,7 @@ class SRCOOLClient:
             self._disconnect_unlocked()
             raise
 
-    def _set_mode_unlocked(self, on: bool) -> None:
+    def _shutdown_unlocked(self) -> None:
         tn = self._ensure_connection_unlocked()
         try:
             self._go_main_menu(tn)
@@ -360,17 +389,34 @@ class SRCOOLClient:
             tn.write(b"3\r\n")  # Controls
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
 
-            if on:
-                tn.write(b"1\r\n")  # Start device
-            else:
-                tn.write(b"3\r\n")  # Shut down device
-
+            tn.write(b"3\r\n")  # Shut down device
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
             tn.write(b"Y\r\n")
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
             tn.write(b"E\r\n")
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            _LOGGER.debug("Operating mode set to %s", "on" if on else "off")
+            _LOGGER.debug("Device shut down")
+        except Exception:
+            self._disconnect_unlocked()
+            raise
+
+    def _set_dehumidifying_unlocked(self, enabled: bool) -> None:
+        code = b"2\r\n" if enabled else b"1\r\n"
+        tn = self._ensure_connection_unlocked()
+        try:
+            self._go_main_menu(tn)
+            tn.write(b"1\r\n")
+            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            tn.write(b"5\r\n")
+            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            tn.write(b"1\r\n")
+            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            tn.write(code)
+            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            _LOGGER.debug(
+                "Dehumidifying set to %s",
+                "on" if enabled else "off",
+            )
         except Exception:
             self._disconnect_unlocked()
             raise
