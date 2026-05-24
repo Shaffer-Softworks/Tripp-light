@@ -61,7 +61,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             SRCoolStatusSensor(coordinator, key, label, icon, unit)
         )
 
-    async_add_entities(sensors, True)
+    async_add_entities(sensors)
 
 
 class SRCoolStatusSensor(CoordinatorEntity, SensorEntity):
@@ -80,10 +80,10 @@ class SRCoolStatusSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Tie this sensor into the same SRCOOL device as the climate entity."""
-        data = self.coordinator.data
-        # must match the climate entity identifiers exactly
+        data = self.coordinator.data or {}
+        port = data.get("port_name") or "unknown_port"
         return {
-            "identifiers": {(DOMAIN, f"tripp_lite_srcool_{data.get('port_name')}")},
+            "identifiers": {(DOMAIN, port)},
             "name": data.get("device_name") or "Tripp Lite SRCOOL",
             "manufacturer": data.get("vendor"),
             "model": data.get("product"),

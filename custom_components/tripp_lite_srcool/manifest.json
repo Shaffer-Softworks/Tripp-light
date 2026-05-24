@@ -1,7 +1,7 @@
 {
   "domain": "tripp_lite_srcool",
   "name": "Tripp Lite SRCOOL",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "config_flow": true,
   "requirements": [],
   "codeowners": ["@sickkick"],

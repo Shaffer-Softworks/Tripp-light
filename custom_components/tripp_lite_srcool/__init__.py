@@ -1,17 +1,20 @@
-"""Climate platform for Tripp Lite SRCOOL."""
+"""Climate platform for Tripp Lite SRCOOL."""
 import logging
-
 from datetime import timedelta
-import telnetlib  # to catch ConnectionError
+from functools import partial
+
 from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN
+from .const import (
+    DIAGNOSTICS_REFRESH_INTERVAL,
+    DOMAIN,
+    SCAN_INTERVAL,
+)
 from .srcool_telnet import SRCOOLClient
 
 _LOGGER = logging.getLogger(__name__)
-SCAN_INTERVAL = timedelta(seconds=30)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -21,37 +24,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data["host"],
         data.get("port", 23),
         data["username"],
-        data["password"]
+        data["password"],
     )
 
-    # Open the Telnet session once at startup
-    try:
-        await hass.async_add_executor_job(client.connect)
-    except ConnectionError as err:
-        _LOGGER.error("Initial SRCOOL login failed: %s", err)
-        raise ConfigEntryNotReady from err
+    poll_count = 0
+    diag_every = max(1, DIAGNOSTICS_REFRESH_INTERVAL // SCAN_INTERVAL)
 
     async def _async_update():
+        nonlocal poll_count
+        poll_count += 1
+        include_diagnostics = poll_count == 1 or poll_count % diag_every == 0
         try:
-            # synchronous get_status in executor
-            return await hass.async_add_executor_job(client.get_status)
+            return await hass.async_add_executor_job(
+                partial(client.get_status, include_diagnostics=include_diagnostics)
+            )
         except ConnectionError as err:
             _LOGGER.warning(
                 "SRCOOL connection lost: %s – keeping old data", err)
             return coordinator.data or {}
         except Exception as err:
             _LOGGER.error("Unexpected error polling SRCOOL: %s", err)
-            raise UpdateFailed(err)
+            raise UpdateFailed(err) from err
 
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
         name="Tripp Lite SRCOOL",
+        config_entry=entry,
         update_method=_async_update,
-        update_interval=SCAN_INTERVAL,
+        update_interval=timedelta(seconds=SCAN_INTERVAL),
+        always_update=False,
     )
 
-    # Initial poll
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
@@ -65,7 +69,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["climate", "sensor"])
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        entry, ["climate", "sensor"]
+    )
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id, None)
+        if entry_data is not None:
+            await hass.async_add_executor_job(entry_data["client"].disconnect)
     return unload_ok
