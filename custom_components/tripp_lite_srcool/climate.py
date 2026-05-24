@@ -146,10 +146,14 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
         self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode):
-        """Handle UI HVAC mode changes."""
-        on = hvac_mode == HVACMode.COOL
+        """Handle UI HVAC mode changes (shutdown only; no telnet power-on)."""
+        if hvac_mode != HVACMode.OFF:
+            _LOGGER.warning(
+                "Power-on is not available via telnet; ignoring %s",
+                hvac_mode,
+            )
+            return
         _LOGGER.debug("UI set HVAC mode → %s", hvac_mode)
-        await self.hass.async_add_executor_job(self._client.set_mode, on)
-        mode = "cooling" if on else "off"
-        self._merge_coordinator_data(mode=mode)
+        await self.hass.async_add_executor_job(self._client.shutdown)
+        self._merge_coordinator_data(mode="off")
         self.async_write_ha_state()
