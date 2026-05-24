@@ -5,86 +5,109 @@ alwaysApply: true
 
 # Tripp-light (Tripp Lite SRCOOL)
 
-Home Assistant **custom integration** for Tripp Lite SR(X)COOL portable AC units over Telnet.
+Home Assistant **custom integration** for the Tripp Lite **SRCOOLNET** SNMP Webcard Interface Module over Telnet. Does not support SRCOOL units without this adapter.
 
 ## Distribution
 
 - **HACS custom repository only** — do **not** submit to `hacs/default` unless the user explicitly asks.
-- Repo: `https://github.com/sickkick/Tripp-light`
+- Repos: `https://github.com/sickkick/Tripp-light`, `Shaffer-Softworks/Tripp-light` (fork)
 - Users add via HACS → Integrations → Custom repositories → category **Integration**.
 
 ## Repository layout
 
 ```
 hacs.json                          # HACS manifest (root only)
-README.md, icon.png                # Docs; icon.png is for README, not HA brands
+mypy.ini                           # mypy config for CI
+README.md, icon.png                # README art; source for brand/ assets
+.github/workflows/ci.yml
 custom_components/tripp_lite_srcool/
   __init__.py, manifest.json
-  brand/                           # icon.png, icon@2x.png, logo.png, logo@2x.png (HA 2026.3+)
+  brand/                           # HA 2026.3+ local brand images (see below)
   config_flow.py, const.py
   climate.py, sensor.py
-  srcool_telnet.py                 # Telnet client / device protocol
+  srcool_telnet.py
   translations/en.json
 ```
 
-- All integration code lives under `custom_components/tripp_lite_srcool/` — never at repo root.
-- Domain: `tripp_lite_srcool` (see `const.py`).
-- Platforms: `climate`, `sensor` (set up via `async_forward_entry_setups` in `__init__.py`).
+- All integration code under `custom_components/tripp_lite_srcool/` — never at repo root.
+- Domain: `tripp_lite_srcool` (`const.py`).
+- Platforms: `climate`, `sensor` via `async_forward_entry_setups` in `__init__.py` — **not** in `manifest.json`.
 
-## Key technical details
+## manifest.json (hassfest)
 
-- **Config flow** only (no YAML); fields: host, port (default 23), username, password; unique_id = host.
-- **Polling**: `DataUpdateCoordinator` in `__init__.py`; intervals from `const.py` only (`SCAN_INTERVAL`, `DIAGNOSTICS_REFRESH_INTERVAL`).
-- **Protocol**: `srcool_telnet.py` — synchronous telnet; executor used from async HA code.
-- **Min HA**: 2024.9 (`hacs.json` + README).
-- **Owner**: `@sickkick` in manifest `codeowners`.
+- Keys: `domain`, `name`, then **alphabetically** (`codeowners`, `config_flow`, `documentation`, `iot_class`, `issue_tracker`, `requirements`, `version`).
+- **Do not** include `icon` or `platforms` — hassfest rejects them for integrations.
+- Bump `version` on each release (currently **0.5.3**).
+
+## Brand images (`brand/`)
+
+- Home Assistant **2026.3+** loads `custom_components/tripp_lite_srcool/brand/` automatically.
+- Required sizes (PNG): `icon.png` 256×256, `icon@2x.png` 512×512; optional `logo.png` / `logo@2x.png`.
+- Regenerate from repo root `icon.png` (1024×1024) with `sips -z`.
+- Do **not** put `icon` in `manifest.json`; entity icons use `mdi:*` in platform code.
 
 ## Device behavior (critical)
 
 The SRCOOL telnet interface is **flaky**:
 
 - Does **not** tolerate frequent polling or overlapping telnet traffic.
-- Allows **one session** at a time — a second connection (e.g. config flow while integration runs) causes failures.
+- **One session** at a time — config flow must not leave a second connection open.
 
-Design accordingly; do not add per-entity polling or extra `async_request_refresh()` after writes.
+Do not add per-entity polling or `async_request_refresh()` after climate writes.
 
-## Connection & polling patterns (v0.5.1+)
+## Connection & polling (v0.5.1+)
 
 | Concern | Pattern |
 |--------|---------|
 | Serialize I/O | `threading.RLock` on all `SRCOOLClient` public methods |
 | One session | Single `SRCOOLClient` per config entry in `hass.data` |
-| Poll interval | `SCAN_INTERVAL = 60` (seconds) in `const.py` |
-| Diagnostics | `get_status(include_diagnostics=True)` only on **first** poll and every `DIAGNOSTICS_REFRESH_INTERVAL` (3600s) |
-| Config validation | `verify_connection()` — login then `disconnect()`; never full `get_status()` |
+| Poll interval | `SCAN_INTERVAL = 60` in `const.py` |
+| Diagnostics | `include_diagnostics=True` on first poll + every `DIAGNOSTICS_REFRESH_INTERVAL` (3600s) |
+| Config validation | `verify_connection()` then `disconnect()` — never full `get_status()` |
 | Unload | `client.disconnect()` in `async_unload_entry` |
-| Climate writes | Optimistic `coordinator.async_set_updated_data()`; **no** immediate refresh |
-| Startup | No `update_before_add`; first `async_config_entry_first_refresh()` only |
-| Device registry | Climate + sensors use `identifiers={(DOMAIN, port_name)}` |
+| Climate writes | Optimistic `coordinator.async_set_updated_data()`; no immediate refresh |
+| Startup | No `update_before_add`; one `async_config_entry_first_refresh()` |
+| Device registry | `identifiers={(DOMAIN, port_name)}` on climate + sensors |
 
 ## Telnet menu paths (`srcool_telnet.py`)
 
-- Status: `M` → `1` (Devices) → `1` (Status); setpoint read via Controls → Set Set Point.
-- Diagnostics: main menu `5` (expensive — poll rarely).
-- Set temp / fan: `M` → `1` → `3` (Controls) → `2` or `4`.
-- Power off: Controls → `3` (Shutdown) → `Y` → `E`.
-- Power on: Controls → `1` (Start) → `Y` → `E` — verify against physical unit if menu differs.
-- After every write, `read_until(PROMPT_READY)` before returning.
+- Status: `M` → `1` → `1`; setpoint via Controls → Set Set Point.
+- Diagnostics: menu `5` (poll rarely).
+- Set temp / fan: `M` → `1` → `3` → `2` or `4`.
+- Power off: Controls `3` → `Y` → `E`.
+- Power on: Controls `1` → `Y` → `E`.
+- Every write: `read_until(PROMPT_READY)`.
 
 ## CI (`.github/workflows/ci.yml`)
 
-- Lint/typecheck paths: `custom_components` only.
-- `hassfest` at repo root.
-- `hacs/action` with `category: integration`.
+Python **3.11** on `ubuntu-latest`:
+
+1. `isort --check-only custom_components`
+2. `flake8 custom_components` (max line length **79** — E501)
+3. `mypy custom_components` (uses root `mypy.ini`)
+4. `home-assistant/actions/hassfest@master` — **not** bare `hassfest` CLI
+5. `hacs/action@main` with `category: integration`
+
+### mypy.ini
+
+- `follow_imports = skip`, `disable_error_code = import-untyped`
+- `tripp_lite_srcool.config_flow`: `disable_error_code = call-arg` for `domain=DOMAIN`
+
+### HACS GitHub repo requirements (not in code)
+
+Forks must set on GitHub or HACS validation fails:
+
+- **Description** (e.g. “Home Assistant custom integration for Tripp Lite SRCOOL…”)
+- **Topics:** `home-assistant`, `homeassistant`, `hacs`, `hacs-integration`
 
 ## When changing the integration
 
-1. Bump `version` in `custom_components/tripp_lite_srcool/manifest.json` for releases.
-2. Keep `issue_tracker` and `documentation` URLs in sync with GitHub repo.
-3. Translation strings go in `translations/en.json` only (no duplicate root `en.json`).
-4. Match existing style: single quotes in `const.py`, relative imports within package.
+1. Bump `manifest.json` `version`.
+2. Keep `issue_tracker` / `documentation` URLs in sync with GitHub.
+3. Translations: `translations/en.json` only.
+4. Style: single quotes in `const.py`; run `isort` + `flake8` before push.
 
 ## Out of scope unless requested
 
-- PR to `hacs/default` default integration list
-- Separate PR to `home-assistant/brands` (optional; local `brand/` ships with the integration for HA 2026.3+)
+- PR to `hacs/default`
+- PR to `home-assistant/brands` (local `brand/` preferred for custom repo)
