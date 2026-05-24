@@ -13,3 +13,8 @@ DIAGNOSTIC_KEYS = frozenset({
     'engine_version',
     'driver_file_status',
 })
+
+# Redundant with the Dehumidify Mode switch; hidden unless diagnostics shown.
+DIAGNOSTIC_ENTITY_KEYS = frozenset({
+    'dehumidifying_status',
+})
