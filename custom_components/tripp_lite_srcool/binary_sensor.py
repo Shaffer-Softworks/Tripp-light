@@ -5,6 +5,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .device import build_device_info
 
 
 def _water_is_full(status: str | None) -> bool:
@@ -33,15 +34,7 @@ class SRCOOLWaterFullBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info shared with other platform entities."""
-        data = self.coordinator.data or {}
-        port = data.get("port_name") or "unknown_port"
-        return DeviceInfo(
-            identifiers={(DOMAIN, port)},
-            name=data.get("device_name") or "Tripp Lite SRCOOL",
-            manufacturer=data.get("vendor"),
-            model=data.get("product"),
-            sw_version=data.get("date_installed"),
-        )
+        return build_device_info(self.coordinator)
 
     @property
     def unique_id(self) -> str:
