@@ -45,10 +45,14 @@ class SRCOOLClient:
             finally:
                 self._disconnect_unlocked()
 
-    def get_status(self, *, include_diagnostics: bool = False) -> Dict[str, Any]:
+    def get_status(
+        self, *, include_diagnostics: bool = False
+    ) -> Dict[str, Any]:
         """Fetch device info, status, and set-point; diagnostics optional."""
         with self._lock:
-            return self._get_status_unlocked(include_diagnostics=include_diagnostics)
+            return self._get_status_unlocked(
+                include_diagnostics=include_diagnostics,
+            )
 
     def get_diagnostics(self) -> Dict[str, Optional[str]]:
         """Fetch the About/Diagnostics screen (menu 5)."""
@@ -146,7 +150,9 @@ class SRCOOLClient:
         tn.write(b"M\r\n")
         tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
 
-    def _get_status_unlocked(self, *, include_diagnostics: bool) -> Dict[str, Any]:
+    def _get_status_unlocked(
+        self, *, include_diagnostics: bool
+    ) -> Dict[str, Any]:
         tn = self._ensure_connection_unlocked()
 
         try:
@@ -198,14 +204,18 @@ class SRCOOLClient:
         status = {
             "water_status": extract("Water Status", status_raw),
             "quiet_mode":   extract("Quiet Mode",   status_raw),
-            "mode":         (extract("Operating Mode", status_raw) or "off").lower(),
+            "mode": (
+                extract("Operating Mode", status_raw) or "off"
+            ).lower(),
             "current_temp": extract(
                 "Return Air Temperature",
                 status_raw,
                 lambda v: float(v.split()[0]),
                 0.0,
             ),
-            "auto_fan":     (extract("Auto Fan Speed", status_raw) or "off").lower(),
+            "auto_fan": (
+                extract("Auto Fan Speed", status_raw) or "off"
+            ).lower(),
         }
 
         fan_value = None
