@@ -2,11 +2,11 @@
     "config": {
       "step": {
         "user": {
-          "title": "Connect to SRCOOL",
-          "description": "Enter connection details for your SRCOOL device."
+          "title": "Connect to SRCOOLNET",
+          "description": "Enter Telnet connection details for your Tripp Lite SRCOOLNET Remote Cooling Management adapter."
         },
         "reauth_confirm": {
-          "title": "Reauthorize SRCOOL",
+          "title": "Reauthorize SRCOOLNET",
           "description": "Password no longer works. Enter a new password."
         }
       },
