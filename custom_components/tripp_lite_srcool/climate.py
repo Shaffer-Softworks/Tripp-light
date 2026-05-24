@@ -1,8 +1,12 @@
-"""Climate platform for Tripp Lite SRCOOL."""
+"""Climate platform for Tripp Lite SRCOOL."""
 import logging
 
 from homeassistant.components.climate import ClimateEntity
-from homeassistant.components.climate.const import HVACMode, ClimateEntityFeature, HVACAction
+from homeassistant.components.climate.const import (
+    HVACMode,
+    ClimateEntityFeature,
+    HVACAction,
+)
 from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -23,7 +27,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     _LOGGER.debug("Setting up SRCOOL climate for entry %s", entry.entry_id)
 
     async_add_entities(
-        [SRCOOLClimate(entry.entry_id, client, coordinator)], update_before_add=True
+        [SRCOOLClimate(entry.entry_id, client, coordinator)],
     )
 
 
@@ -43,13 +47,17 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
         super().__init__(coordinator)
         self._entry_id = entry_id
         self._client = client
-        self._attr_name = "Tripp Lite SRCOOL"
-
-        # This unique_id never changes (tied to config entry)
+        self._attr_name = "Tripp Lite SRCOOL"
         self._attr_unique_id = f"tripp_lite_srcool_{entry_id}"
-
-        # Hold the last set‐point so the UI slider appears immediately
         self._target_temperature = None
+
+    def _merge_coordinator_data(self, **updates):
+        """Apply optimistic updates without an immediate device poll."""
+        if self.coordinator.data is None:
+            return
+        self.coordinator.async_set_updated_data(
+            {**self.coordinator.data, **updates}
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -68,37 +76,29 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
     def hvac_mode(self) -> HVACMode | None:
         """Return current HVAC mode (“cooling” or “off”)."""
         mode = self.coordinator.data.get("mode")
-        state = None
         match mode:
-            case "idle":
-                action = HVACMode.COOL
-            case "cooling":
-                action = HVACMode.COOL
-            case "defrosting":
-                action = HVACMode.COOL
+            case "idle" | "cooling" | "defrosting":
+                return HVACMode.COOL
             case "off":
-                action = HVACMode.OFF
+                return HVACMode.OFF
             case _:
-                action = None
-        return action
+                return None
 
     @property
     def hvac_action(self) -> HVACAction | None:
-        """Return the current running HVAC action"""
+        """Return the current running HVAC action."""
         mode = self.coordinator.data.get("mode")
-        action = None
         match mode:
             case "idle":
-                action = HVACAction.IDLE
+                return HVACAction.IDLE
             case "cooling":
-                action = HVACAction.COOLING
+                return HVACAction.COOLING
             case "defrosting":
-                action = HVACAction.DEFROSTING
+                return HVACAction.DEFROSTING
             case "off":
-                action = HVACAction.OFF
+                return HVACAction.OFF
             case _:
-                action = None
-        return action
+                return None
 
     @property
     def current_temperature(self) -> float | None:
@@ -107,22 +107,21 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
 
     @property
     def target_temperature(self) -> float | None:
-        """Return the last user‐set target, or current temperature if unset."""
+        """Return the last user-set target, or current temperature if unset."""
         self._target_temperature = self.coordinator.data.get("target_temp")
 
         if self._target_temperature is not None:
             return self._target_temperature
-        # seed the slider with the current temperature
         return self.current_temperature
 
     @property
     def min_temp(self) -> float:
-        """Device’s minimum settable temperature."""
+        """Device's minimum settable temperature."""
         return 63.0
 
     @property
     def max_temp(self) -> float:
-        """Device’s maximum settable temperature."""
+        """Device's maximum settable temperature."""
         return 86.0
 
     @property
@@ -137,14 +136,14 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
         _LOGGER.debug("UI set temperature → %s°F", temp)
         await self.hass.async_add_executor_job(self._client.set_target_temp, temp)
         self._target_temperature = temp
-        await self.coordinator.async_request_refresh()
+        self._merge_coordinator_data(target_temp=temp)
         self.async_write_ha_state()
 
     async def async_set_fan_mode(self, fan_mode: str):
         """Handle UI fan mode changes."""
         _LOGGER.debug("UI set fan mode → %s", fan_mode)
         await self.hass.async_add_executor_job(self._client.set_fan, fan_mode)
-        await self.coordinator.async_request_refresh()
+        self._merge_coordinator_data(fan=fan_mode.lower())
         self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode):
@@ -152,5 +151,6 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
         on = hvac_mode == HVACMode.COOL
         _LOGGER.debug("UI set HVAC mode → %s", hvac_mode)
         await self.hass.async_add_executor_job(self._client.set_mode, on)
-        await self.coordinator.async_request_refresh()
+        mode = "cooling" if on else "off"
+        self._merge_coordinator_data(mode=mode)
         self.async_write_ha_state()

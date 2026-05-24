@@ -1,0 +1,57 @@
+---
+description: Tripp-light HA integration — HACS layout, conventions, and project context
+alwaysApply: true
+---
+
+# Tripp-light (Tripp Lite SRCOOL)
+
+Home Assistant **custom integration** for Tripp Lite SR(X)COOL portable AC units over Telnet.
+
+## Distribution
+
+- **HACS custom repository only** — do **not** submit to `hacs/default` unless the user explicitly asks.
+- Repo: `https://github.com/sickkick/Tripp-light`
+- Users add via HACS → Integrations → Custom repositories → category **Integration**.
+
+## Repository layout
+
+```
+hacs.json                          # HACS manifest (root only)
+README.md, icon.png                # Docs; icon.png is for README, not HA brands
+custom_components/tripp_lite_srcool/
+  __init__.py, manifest.json
+  config_flow.py, const.py
+  climate.py, sensor.py
+  srcool_telnet.py                 # Telnet client / device protocol
+  translations/en.json
+```
+
+- All integration code lives under `custom_components/tripp_lite_srcool/` — never at repo root.
+- Domain: `tripp_lite_srcool` (see `const.py`).
+- Platforms: `climate`, `sensor` (declared in `manifest.json`).
+
+## Key technical details
+
+- **Config flow** only (no YAML); fields: host, port (default 23), username, password; reauth supported.
+- **Polling**: coordinator in `__init__.py` (`SCAN_INTERVAL` in const vs coordinator may differ — check both).
+- **Protocol**: `srcool_telnet.py` — synchronous telnet; executor used from async HA code.
+- **Min HA**: 2024.9 (`hacs.json` + README).
+- **Owner**: `@sickkick` in manifest `codeowners`.
+
+## CI (`.github/workflows/ci.yml`)
+
+- Lint/typecheck paths: `custom_components` only.
+- `hassfest` at repo root.
+- `hacs/action` with `category: integration`.
+
+## When changing the integration
+
+1. Bump `version` in `custom_components/tripp_lite_srcool/manifest.json` for releases.
+2. Keep `issue_tracker` and `documentation` URLs in sync with GitHub repo.
+3. Translation strings go in `translations/en.json` only (no duplicate root `en.json`).
+4. Match existing style: single quotes in `const.py`, relative imports within package.
+
+## Out of scope unless requested
+
+- PR to `hacs/default` default integration list
+- `home-assistant/brands` entries (custom integration uses `mdi:air-conditioner` in manifest)
