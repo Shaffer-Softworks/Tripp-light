@@ -73,6 +73,15 @@ Brand icons for the integration picker and device UI are included under `custom_
 
 ---
 
+## HACS repository settings
+
+If you fork this repo, set these on GitHub so HACS validation passes:
+
+- **Description:** e.g. “Home Assistant custom integration for Tripp Lite SRCOOL portable air conditioners over Telnet.”
+- **Topics:** `home-assistant`, `homeassistant`, `hacs`, `hacs-integration` (and optionally `tripp-lite`)
+
+---
+
 ## Support
 
 - [Documentation](https://github.com/sickkick/Tripp-light)
