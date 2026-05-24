@@ -8,7 +8,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import (DataUpdateCoordinator,
                                                       UpdateFailed)
 
-from .const import DIAGNOSTICS_REFRESH_INTERVAL, DOMAIN, SCAN_INTERVAL
+from .const import (DIAGNOSTIC_KEYS, DIAGNOSTICS_REFRESH_INTERVAL, DOMAIN,
+                    SCAN_INTERVAL)
 from .srcool_telnet import SRCOOLClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,7 +37,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 client.get_status,
                 include_diagnostics=include_diagnostics,
             )
-            return await hass.async_add_executor_job(fetch)
+            result = await hass.async_add_executor_job(fetch)
+            if not include_diagnostics and coordinator.data:
+                for key in DIAGNOSTIC_KEYS:
+                    if key in coordinator.data:
+                        result[key] = coordinator.data[key]
+            return result
         except ConnectionError as err:
             _LOGGER.warning(
                 "SRCOOL connection lost: %s – keeping old data", err)
