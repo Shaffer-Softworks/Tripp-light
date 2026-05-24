@@ -2,7 +2,9 @@
 
 ![Tripp Lite SRCOOL Icon](icon.png)
 
-> Control and monitor your Tripp Lite SR(X)COOL series portable air-conditioner directly from Home Assistant over Telnet.
+> Control and monitor your Tripp Lite portable air conditioner from Home Assistant over Telnet.
+
+**Supported hardware:** This integration works only with the [Tripp Lite SRCOOLNET SNMP Webcard Interface Module](https://tripplite.eaton.com/snmp-webcard-interface-module-remote-cooling-management-srcool12k-srxcool12k~SRCOOLNET) (Remote Cooling Management for SRCOOL12K / SRXCOOL12K). It does not support direct connection to SRCOOL units without this adapter.
 
 ---
 
@@ -28,8 +30,8 @@
 
 - Home Assistant Core **2024.9** or later (integration UI brand images require **2026.3** or later)
 - [HACS](https://hacs.xyz/) (recommended) or manual install
-- SRCOOL unit with Telnet enabled
-- Network reachability from your HA host to the SRCOOL device
+- Tripp Lite **SRCOOLNET** SNMP Webcard Interface Module, with Telnet enabled
+- Network reachability from your Home Assistant host to the adapter
 
 ---
 
@@ -62,7 +64,7 @@ During setup you will be prompted for:
 
 | Field    | Description                          |
 |----------|--------------------------------------|
-| Host     | IP address or hostname of the unit   |
+| Host     | IP address or hostname of the SRCOOLNET adapter |
 | Port     | Telnet port (default `23`)         |
 | Username | Telnet username                      |
 | Password | Telnet password                      |
@@ -77,7 +79,7 @@ Brand icons for the integration picker and device UI are included under `custom_
 
 If you fork this repo, set these on GitHub so HACS validation passes:
 
-- **Description:** e.g. “Home Assistant custom integration for Tripp Lite SRCOOL portable air conditioners over Telnet.”
+- **Description:** e.g. “Home Assistant custom integration for Tripp Lite SRCOOLNET Remote Cooling Management over Telnet.”
 - **Topics:** `home-assistant`, `homeassistant`, `hacs`, `hacs-integration` (and optionally `tripp-lite`)
 
 ---
