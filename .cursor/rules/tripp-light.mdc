@@ -30,20 +30,20 @@ custom_components/tripp_lite_srcool/
   __init__.py, manifest.json
   brand/                           # HA 2026.3+ local brand images (see below)
   config_flow.py, const.py
-  climate.py, sensor.py
+  climate.py, sensor.py, binary_sensor.py, switch.py
   srcool_telnet.py
   translations/en.json
 ```
 
 - All integration code under `custom_components/tripp_lite_srcool/` — never at repo root.
 - Domain: `tripp_lite_srcool` (`const.py`).
-- Platforms: `climate`, `sensor` via `async_forward_entry_setups` in `__init__.py` — **not** in `manifest.json`.
+- Platforms: `binary_sensor`, `climate`, `sensor`, `switch` via `async_forward_entry_setups` in `__init__.py` — **not** in `manifest.json`.
 
 ## manifest.json (hassfest)
 
 - Keys: `domain`, `name`, then **alphabetically** (`codeowners`, `config_flow`, `documentation`, `iot_class`, `issue_tracker`, `requirements`, `version`).
 - **Do not** include `icon` or `platforms` — hassfest rejects them for integrations.
-- Bump `version` on each release (currently **0.5.4**).
+- Bump `version` on each release (currently **0.5.6**).
 
 ## Brand images (`brand/`)
 
@@ -78,19 +78,24 @@ Do not add per-entity polling or `async_request_refresh()` after climate writes.
 
 ## Diagnostics (sensors + coordinator)
 
-- **Keys** in `const.py` → `DIAGNOSTIC_KEYS` (frozenset): `os`, `agent_type`, `mac_address`, `card_serial_number`, `driver_version`, `engine_version`, `driver_file_status`.
-- **Sensors** (`sensor.py`): those keys use `EntityCategory.DIAGNOSTIC` — hidden by default in HA. Users enable **Show diagnostic entities** on the device page.
+- **Keys** in `const.py` → `DIAGNOSTIC_KEYS` (frozenset): telnet menu `5` fields preserved hourly between fetches.
+- **Keys** in `const.py` → `DIAGNOSTIC_ENTITY_KEYS`: `dehumidifying_status` — hidden sensor redundant with **Dehumidify Mode** switch.
+- **Sensors** (`sensor.py`): `DIAGNOSTIC_KEYS | DIAGNOSTIC_ENTITY_KEYS` use `EntityCategory.DIAGNOSTIC`.
 - **Telnet**: `_get_diagnostics_unlocked()` — main menu → `5`; parsed in `srcool_telnet.py`. Failures log `Error fetching diagnostics` and must not wipe cached values.
 - **Bug (v0.5.3)**: coordinator replaced full `data` every 60s without diagnostic keys → entities showed **Unknown** after the first minute. **Fix (v0.5.4+)**: preserve `DIAGNOSTIC_KEYS` in `__init__.py` `_async_update` when `include_diagnostics` is false.
 
 ## Telnet menu paths (`srcool_telnet.py`)
 
-- Status: `M` → `1` → `1`; setpoint via Controls → Set Set Point.
-- Diagnostics: menu `5` (poll rarely; see **Diagnostics** above).
-- Set temp / fan: `M` → `1` → `3` → `2` or `4`.
-- Power off: Controls `3` → `Y` → `E`.
-- Power on: Controls `1` → `Y` → `E`.
-- Every write: `read_until(PROMPT_READY)`.
+- Status: `M` → `1` → `1`
+- Identification: `M` → `1` → `2` (device info + serial)
+- Preferences: `M` → `1` → `5` (dehumidifying status, units)
+- Setpoint read / write: `M` → `1` → `3` → `2` → `1`
+- Fan write: `M` → `1` → `3` → `4`
+- Dehumidify write: `M` → `1` → `5` → `1` → `1` or `2`
+- Shutdown: `M` → `1` → `3` → `3` → `Y` → `E`
+- Diagnostics: main menu `5` (poll rarely; see **Diagnostics** above)
+- **No telnet power-on** — Controls `1` is Reboot SNMP Card; climate COOL write is ignored
+- Every write: `read_until(PROMPT_READY)`
 
 ## CI (`.github/workflows/ci.yml`)
 
