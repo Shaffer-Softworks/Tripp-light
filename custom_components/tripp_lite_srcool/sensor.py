@@ -7,6 +7,7 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DIAGNOSTIC_KEYS, DOMAIN
+from .device import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,15 +86,7 @@ class SRCoolStatusSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info shared with the climate entity."""
-        data = self.coordinator.data or {}
-        port = data.get("port_name") or "unknown_port"
-        return {
-            "identifiers": {(DOMAIN, port)},
-            "name": data.get("device_name") or "Tripp Lite SRCOOL",
-            "manufacturer": data.get("vendor"),
-            "model": data.get("product"),
-            "sw_version": data.get("date_installed"),
-        }
+        return build_device_info(self.coordinator)
 
     @property
     def unique_id(self) -> str:
