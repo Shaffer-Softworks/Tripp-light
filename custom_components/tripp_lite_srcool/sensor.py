@@ -15,6 +15,8 @@ _F = UnitOfTemperature.FAHRENHEIT
 _INFO = "mdi:information-variant"
 SENSOR_TYPES: dict[str, tuple[str, str, str | None]] = {
     "device_name": ("Device Name", _INFO, None),
+    "location": ("Location", "mdi:map-marker", None),
+    "region": ("Region", "mdi:earth", None),
     "vendor": ("Vendor", "mdi:label", None),
     "product": ("Product", "mdi:label", None),
     "protocol": ("Protocol", "mdi:protocol", None),
@@ -23,6 +25,8 @@ SENSOR_TYPES: dict[str, tuple[str, str, str | None]] = {
     "type": ("Device Type", "mdi:power-socket-us", None),
     "port_mode": ("Port Mode", "mdi:serial-port", None),
     "port_name": ("Port Name", "mdi:label", None),
+    "serial_number": ("Serial Number", "mdi:identifier", None),
+    "asset_tag": ("Asset Tag", "mdi:tag", None),
     "water_status": ("Water Status", "mdi:water-circle", None),
     "quiet_mode": ("Quiet Mode", _INFO, None),
     "auto_fan": ("Auto Fan Speed", "mdi:fan-auto", None),
@@ -30,6 +34,10 @@ SENSOR_TYPES: dict[str, tuple[str, str, str | None]] = {
     "mode": ("Operating Mode", "mdi:thermostat", None),
     "current_temp": ("Return Air Temperature", "mdi:thermometer", _F),
     "target_temp": ("Target Temperature", "mdi:thermometer", _F),
+    "dehumidifying_status": (
+        "Dehumidifying Status", "mdi:air-humidifier", None,
+    ),
+    "units": ("Units", "mdi:ruler", None),
     "os": ("OS", _INFO, None),
     "agent_type": ("Agent Type", _INFO, None),
     "mac_address": ("MAC Address", _INFO, None),
