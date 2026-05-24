@@ -2,11 +2,8 @@
 import logging
 
 from homeassistant.components.climate import ClimateEntity
-from homeassistant.components.climate.const import (
-    HVACMode,
-    ClimateEntityFeature,
-    HVACAction,
-)
+from homeassistant.components.climate.const import (ClimateEntityFeature,
+                                                    HVACAction, HVACMode)
 from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
