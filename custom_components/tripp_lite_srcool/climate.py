@@ -9,6 +9,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .device import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,15 +60,7 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device registry info for the SRCOOL device."""
-        data = self.coordinator.data or {}
-        port = data.get("port_name") or self._entry_id
-        return DeviceInfo(
-            identifiers={(DOMAIN, port)},
-            name=data.get("device_name") or f"Device {port}",
-            manufacturer=data.get("vendor"),
-            model=data.get("product"),
-            sw_version=data.get("date_installed"),
-        )
+        return build_device_info(self.coordinator)
 
     @property
     def hvac_mode(self) -> HVACMode | None:
