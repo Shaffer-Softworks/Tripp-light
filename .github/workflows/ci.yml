@@ -15,7 +15,7 @@ jobs:
         python-version: [3.11]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -40,7 +40,7 @@ jobs:
         run: mypy custom_components
 
       - name: Home Assistant manifest validation (hassfest)
-        run: hassfest
+        uses: home-assistant/actions/hassfest@master
 
       - name: HACS validation
         uses: hacs/action@main
