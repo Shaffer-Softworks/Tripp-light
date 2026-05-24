@@ -20,6 +20,7 @@ hacs.json                          # HACS manifest (root only)
 README.md, icon.png                # Docs; icon.png is for README, not HA brands
 custom_components/tripp_lite_srcool/
   __init__.py, manifest.json
+  brand/                           # icon.png, icon@2x.png, logo.png, logo@2x.png (HA 2026.3+)
   config_flow.py, const.py
   climate.py, sensor.py
   srcool_telnet.py                 # Telnet client / device protocol
@@ -28,7 +29,7 @@ custom_components/tripp_lite_srcool/
 
 - All integration code lives under `custom_components/tripp_lite_srcool/` — never at repo root.
 - Domain: `tripp_lite_srcool` (see `const.py`).
-- Platforms: `climate`, `sensor` (declared in `manifest.json`).
+- Platforms: `climate`, `sensor` (set up via `async_forward_entry_setups` in `__init__.py`).
 
 ## Key technical details
 
@@ -86,4 +87,4 @@ Design accordingly; do not add per-entity polling or extra `async_request_refres
 ## Out of scope unless requested
 
 - PR to `hacs/default` default integration list
-- `home-assistant/brands` entries (custom integration uses `mdi:air-conditioner` in manifest)
+- Separate PR to `home-assistant/brands` (optional; local `brand/` ships with the integration for HA 2026.3+)

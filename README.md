@@ -26,7 +26,7 @@
 
 ## Prerequisites
 
-- Home Assistant Core **2024.9** or later
+- Home Assistant Core **2024.9** or later (integration UI brand images require **2026.3** or later)
 - [HACS](https://hacs.xyz/) (recommended) or manual install
 - SRCOOL unit with Telnet enabled
 - Network reachability from your HA host to the SRCOOL device
@@ -68,6 +68,8 @@ During setup you will be prompted for:
 | Password | Telnet password                      |
 
 If credentials change, use **Reconfigure** on the integration device page.
+
+Brand icons for the integration picker and device UI are included under `custom_components/tripp_lite_srcool/brand/` (Home Assistant 2026.3+).
 
 ---
 
