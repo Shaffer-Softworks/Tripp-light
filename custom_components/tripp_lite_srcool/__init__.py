@@ -3,7 +3,7 @@ import logging
 
 from datetime import timedelta
 import telnetlib  # to catch ConnectionError
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
