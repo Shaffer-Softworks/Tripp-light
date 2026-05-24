@@ -5,15 +5,15 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 
-from .const import DOMAIN
-from .srcool_telnet import SRCOOLClient  # or srcool_telnet3 if you renamed it
+from .const import DEFAULT_PORT, DOMAIN
+from .srcool_telnet import SRCOOLClient
 
 _LOGGER = logging.getLogger(__name__)
 
 DATA_SCHEMA = vol.Schema(
     {
         vol.Required("host"): str,
-        vol.Required("port", default=23): int,
+        vol.Required("port", default=DEFAULT_PORT): int,
         vol.Required("username"): str,
         vol.Required("password"): str,
     }
@@ -31,15 +31,17 @@ class TrippLiteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            await self.async_set_unique_id(user_input["host"])
+            self._abort_if_unique_id_configured()
+
             client = SRCOOLClient(
                 user_input["host"],
                 user_input["port"],
                 user_input["username"],
                 user_input["password"],
             )
-            # validate connectivity
             try:
-                await self.hass.async_add_executor_job(client.get_status)
+                await self.hass.async_add_executor_job(client.verify_connection)
             except ConnectionError:
                 _LOGGER.exception("SRCOOL cannot_connect")
                 errors["base"] = "cannot_connect"
@@ -64,7 +66,6 @@ class TrippLiteOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry):
         """Initialize with the config entry."""
-        # Store for reading existing values
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
@@ -76,10 +77,20 @@ class TrippLiteOptionsFlowHandler(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Return the updated options
-            return self.async_create_entry(title="", data=user_input)
+            client = SRCOOLClient(
+                user_input["host"],
+                user_input["port"],
+                user_input["username"],
+                user_input["password"],
+            )
+            try:
+                await self.hass.async_add_executor_job(client.verify_connection)
+            except ConnectionError:
+                _LOGGER.exception("SRCOOL cannot_connect")
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_create_entry(title="", data=user_input)
 
-        # Prepopulate form with either existing options or original data
         current = {}
         current.update(self._config_entry.data or {})
         current.update(self._config_entry.options or {})
@@ -87,7 +98,7 @@ class TrippLiteOptionsFlowHandler(config_entries.OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required("host", default=current.get("host")): str,
-                vol.Required("port", default=current.get("port", 23)): int,
+                vol.Required("port", default=current.get("port", DEFAULT_PORT)): int,
                 vol.Required("username", default=current.get("username")): str,
                 vol.Required("password", default=current.get("password")): str,
             }
