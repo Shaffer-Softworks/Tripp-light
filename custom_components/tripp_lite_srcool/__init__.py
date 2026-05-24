@@ -3,15 +3,12 @@ import logging
 from datetime import timedelta
 from functools import partial
 
-from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (DataUpdateCoordinator,
+                                                      UpdateFailed)
 
-from .const import (
-    DIAGNOSTICS_REFRESH_INTERVAL,
-    DOMAIN,
-    SCAN_INTERVAL,
-)
+from .const import DIAGNOSTICS_REFRESH_INTERVAL, DOMAIN, SCAN_INTERVAL
 from .srcool_telnet import SRCOOLClient
 
 _LOGGER = logging.getLogger(__name__)

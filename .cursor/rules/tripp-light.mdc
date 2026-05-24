@@ -32,11 +32,43 @@ custom_components/tripp_lite_srcool/
 
 ## Key technical details
 
-- **Config flow** only (no YAML); fields: host, port (default 23), username, password; reauth supported.
-- **Polling**: coordinator in `__init__.py` (`SCAN_INTERVAL` in const vs coordinator may differ — check both).
+- **Config flow** only (no YAML); fields: host, port (default 23), username, password; unique_id = host.
+- **Polling**: `DataUpdateCoordinator` in `__init__.py`; intervals from `const.py` only (`SCAN_INTERVAL`, `DIAGNOSTICS_REFRESH_INTERVAL`).
 - **Protocol**: `srcool_telnet.py` — synchronous telnet; executor used from async HA code.
 - **Min HA**: 2024.9 (`hacs.json` + README).
 - **Owner**: `@sickkick` in manifest `codeowners`.
+
+## Device behavior (critical)
+
+The SRCOOL telnet interface is **flaky**:
+
+- Does **not** tolerate frequent polling or overlapping telnet traffic.
+- Allows **one session** at a time — a second connection (e.g. config flow while integration runs) causes failures.
+
+Design accordingly; do not add per-entity polling or extra `async_request_refresh()` after writes.
+
+## Connection & polling patterns (v0.5.1+)
+
+| Concern | Pattern |
+|--------|---------|
+| Serialize I/O | `threading.RLock` on all `SRCOOLClient` public methods |
+| One session | Single `SRCOOLClient` per config entry in `hass.data` |
+| Poll interval | `SCAN_INTERVAL = 60` (seconds) in `const.py` |
+| Diagnostics | `get_status(include_diagnostics=True)` only on **first** poll and every `DIAGNOSTICS_REFRESH_INTERVAL` (3600s) |
+| Config validation | `verify_connection()` — login then `disconnect()`; never full `get_status()` |
+| Unload | `client.disconnect()` in `async_unload_entry` |
+| Climate writes | Optimistic `coordinator.async_set_updated_data()`; **no** immediate refresh |
+| Startup | No `update_before_add`; first `async_config_entry_first_refresh()` only |
+| Device registry | Climate + sensors use `identifiers={(DOMAIN, port_name)}` |
+
+## Telnet menu paths (`srcool_telnet.py`)
+
+- Status: `M` → `1` (Devices) → `1` (Status); setpoint read via Controls → Set Set Point.
+- Diagnostics: main menu `5` (expensive — poll rarely).
+- Set temp / fan: `M` → `1` → `3` (Controls) → `2` or `4`.
+- Power off: Controls → `3` (Shutdown) → `Y` → `E`.
+- Power on: Controls → `1` (Start) → `Y` → `E` — verify against physical unit if menu differs.
+- After every write, `read_until(PROMPT_READY)` before returning.
 
 ## CI (`.github/workflows/ci.yml`)
 

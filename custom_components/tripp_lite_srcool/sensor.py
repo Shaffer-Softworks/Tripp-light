@@ -1,10 +1,11 @@
 """Sensor platform for Tripp Lite SRCOOL climate devices."""
 import logging
-from homeassistant.helpers.entity import DeviceInfo
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import UnitOfTemperature
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.entity import EntityCategory
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
