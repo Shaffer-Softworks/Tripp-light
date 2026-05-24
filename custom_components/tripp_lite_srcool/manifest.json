@@ -6,6 +6,7 @@
   "requirements": [],
   "codeowners": ["@sickkick"],
   "documentation": "https://github.com/sickkick/Tripp-light",
+  "issue_tracker": "https://github.com/sickkick/Tripp-light/issues",
   "iot_class": "local_polling",
   "icon": "mdi:air-conditioner",
   "platforms": ["climate", "sensor"]

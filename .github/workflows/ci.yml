@@ -31,15 +31,18 @@ jobs:
       #  run: black --check .
 
       - name: isort import sort check
-        run: isort --check-only .
+        run: isort --check-only custom_components
 
       - name: Flake8 lint
-        run: flake8 .
+        run: flake8 custom_components
 
       - name: Mypy type check
-        run: mypy .
+        run: mypy custom_components
 
       - name: Home Assistant manifest validation (hassfest)
-        run: |
-          # hassfest checks manifest.json, config_flow, etc.
-          hassfest .
+        run: hassfest
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
