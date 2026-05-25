@@ -43,7 +43,7 @@ custom_components/tripp_lite_srcool/
 
 - Keys: `domain`, `name`, then **alphabetically** (`codeowners`, `config_flow`, `documentation`, `iot_class`, `issue_tracker`, `requirements`, `version`).
 - **Do not** include `icon` or `platforms` — hassfest rejects them for integrations.
-- Bump `version` on each release (currently **0.5.6**).
+- Bump `version` on each release (currently **0.5.7**).
 
 ## Brand images (`brand/`)
 

@@ -14,6 +14,8 @@ PROMPT_READY = b">>"        # main-menu prompt
 TELNET_TIMEOUT = 10
 RETRY_COUNT = 3
 RETRY_DELAY = 1
+STATUS_SCREEN_MARKER = "Device Status Menu"
+SETPOINT_SCREEN_MARKER = "Temperature (F)"
 
 
 class SRCOOLClient:
@@ -190,18 +192,85 @@ class SRCOOLClient:
                     return default
         return default
 
+    @staticmethod
+    def _parse_fan_speed(status_raw: str) -> Optional[str]:
+        """Return fan speed from status screen (not Auto Fan Speed)."""
+        for line in status_raw.splitlines():
+            stripped = line.lstrip()
+            if stripped.lower().startswith("auto fan"):
+                continue
+            match = re.match(r"Fan Speed\s*:\s*(\S+)", stripped, re.I)
+            if match:
+                return match.group(1).lower()
+        return None
+
+    @staticmethod
+    def _parse_target_temp(
+        setpoint_raw: str, prefs_raw: str
+    ) -> Optional[float]:
+        """Read target temperature from setpoint or preferences screen."""
+        match = re.search(
+            r"Value\s*:\s*([0-9]+(?:\.[0-9]+)?)", setpoint_raw
+        )
+        if match:
+            return float(match.group(1))
+        prefs_val = SRCOOLClient._extract_field(
+            "Set Point Temperature",
+            prefs_raw,
+            lambda v: float(v.split()[0]),
+            None,
+        )
+        return prefs_val
+
+    def _fetch_status_screens_unlocked(
+        self, tn: telnetlib.Telnet
+    ) -> tuple[str, str, str]:
+        """Read status, identification, and preferences screens."""
+        status_raw = self._read_devices_screen(tn, b"1\r\n")
+        if STATUS_SCREEN_MARKER not in status_raw:
+            raise ValueError(
+                "Unexpected status screen (session out of sync)"
+            )
+        id_raw = self._read_devices_screen(tn, b"2\r\n")
+        prefs_raw = self._read_devices_screen(tn, b"5\r\n")
+        return status_raw, id_raw, prefs_raw
+
     def _get_status_unlocked(
         self, *, include_diagnostics: bool
     ) -> Dict[str, Any]:
-        tn = self._ensure_connection_unlocked()
+        last_err: Optional[Exception] = None
 
+        for attempt in range(1, 3):
+            tn = self._ensure_connection_unlocked()
+            try:
+                merged = self._get_status_once_unlocked(
+                    tn, include_diagnostics=include_diagnostics
+                )
+                return merged
+            except Exception as err:
+                last_err = err
+                _LOGGER.warning(
+                    "get_status attempt %d failed, reconnecting: %s",
+                    attempt, err,
+                )
+                self._disconnect_unlocked()
+
+        raise ConnectionError(
+            f"Could not read SRCOOL status: {last_err}"
+        ) from last_err
+
+    def _get_status_once_unlocked(
+        self,
+        tn: telnetlib.Telnet,
+        *,
+        include_diagnostics: bool,
+    ) -> Dict[str, Any]:
         try:
-            status_raw = self._read_devices_screen(tn, b"1\r\n")
-            id_raw = self._read_devices_screen(tn, b"2\r\n")
-            prefs_raw = self._read_devices_screen(tn, b"5\r\n")
+            status_raw, id_raw, prefs_raw = (
+                self._fetch_status_screens_unlocked(tn)
+            )
         except Exception as err:
-            _LOGGER.warning("get_status step A failed, reconnecting: %s", err)
-            self._disconnect_unlocked()
+            _LOGGER.warning("get_status step A failed: %s", err)
             raise
 
         _LOGGER.debug("Status screen:\n%s", status_raw)
@@ -243,12 +312,7 @@ class SRCOOLClient:
             ).lower(),
         }
 
-        fan_value = None
-        for line in status_raw.splitlines():
-            if line.lstrip().lower().startswith("fan speed"):
-                after = line.split(":", 1)[1].strip()
-                fan_value = after.split("  ")[0].strip().lower()
-                break
+        fan_value = self._parse_fan_speed(status_raw)
         if not fan_value:
             _LOGGER.warning("Could not parse Fan Speed in status screen")
             fan_value = "unknown"
@@ -275,13 +339,17 @@ class SRCOOLClient:
                 PROMPT_READY, timeout=TELNET_TIMEOUT).decode(errors="ignore")
             _LOGGER.debug("Set-Point Screen:\n%s", setpoint_raw)
         except Exception as err:
-            _LOGGER.warning("get_status step B failed, reconnecting: %s", err)
-            self._disconnect_unlocked()
+            _LOGGER.warning("get_status step B failed: %s", err)
             raise
 
-        m = re.search(r"Value\s*:\s*([0-9]+(?:\.[0-9]+)?)", setpoint_raw)
-        if m:
-            status["target_temp"] = float(m.group(1))
+        if SETPOINT_SCREEN_MARKER not in setpoint_raw:
+            raise ValueError(
+                "Unexpected setpoint screen (session out of sync)"
+            )
+
+        target_temp = self._parse_target_temp(setpoint_raw, prefs_raw)
+        if target_temp is not None:
+            status["target_temp"] = target_temp
         else:
             _LOGGER.warning("Could not parse target_temp from screen")
 
