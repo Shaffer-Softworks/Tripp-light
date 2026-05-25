@@ -1,8 +1,5 @@
 {
-  "hacs": "1.34.0",
   "name": "Tripp Lite SRCOOL",
   "homeassistant": "2024.9.0",
-  "render_readme": true,
-  "zip_release": true,
-  "filename": "tripp_lite_srcool.zip"
+  "render_readme": true
 }
