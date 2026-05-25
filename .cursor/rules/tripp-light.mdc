@@ -97,6 +97,32 @@ Do not add per-entity polling or `async_request_refresh()` after climate writes.
 - **No telnet power-on** — Controls `1` is Reboot SNMP Card; climate COOL write is ignored
 - Every write: `read_until(PROMPT_READY)`
 
+## Session desync & parsing (v0.5.7)
+
+**Symptom (2026-05-25):** HA logs every 60s: `Could not parse Fan Speed in status screen` + `Could not parse target_temp from screen`. Fan sensor → `unknown`, operating mode → `off`, climate → `off` while unit still cooling. **Reload integration** fixes until desync again.
+
+**Root cause:** Stale telnet session reads the **wrong screen** (Devices menu or Controls menu) instead of Status / Set Point. Those screens lack `Fan Speed`, `Return Air Temperature`, and `Value:` — parsers fail; missing `Operating Mode` defaults to `"off"`.
+
+**Screen markers** (`srcool_telnet.py`):
+
+| Screen | Marker / validation |
+|--------|---------------------|
+| Status | `STATUS_SCREEN_MARKER = "Device Status Menu"` |
+| Set point | `SETPOINT_SCREEN_MARKER = "Temperature (F)"` |
+
+**Recovery (v0.5.7+):** `_get_status_unlocked()` → up to 2 attempts: validate screens in `_fetch_status_screens_unlocked()` / setpoint step; on failure `disconnect()` and retry. Raises `ConnectionError` if both fail (coordinator keeps old data per `__init__.py`).
+
+**Parsers:**
+
+- Fan: `_parse_fan_speed()` — regex `Fan Speed\s*:`; skip lines starting with `Auto Fan`.
+- Target temp: `_parse_target_temp()` — regex `Value\s*:` on setpoint screen; fallback `Set Point Temperature` from Preferences (`prefs_raw`).
+
+**Do not** open a second telnet client to the SRCOOLNET card while HA is polling.
+
+**Debug on user HA:** MCP `ha_get_logs` source `system`/`error_log` search `tripp_lite_srcool`; logbook `sensor.srcool_fan_speed`, `sensor.srcool_operating_mode`, `climate.climate_control_tripp_lite_srcool`. User unit: config entry `SRCOOL 10.10.0.61`, v0.5.6 installed when investigated; fix in workspace as **0.5.7** (not yet released/committed unless user asks).
+
+**Live verify (read-only):** from repo root, `SRCOOLClient(host, 23, ...).get_status()` against `10.10.0.61`; stress-test 25 polls; desync test: leave session on Devices menu then call `get_status()` — should auto-recover.
+
 ## CI (`.github/workflows/ci.yml`)
 
 Python **3.11** on `ubuntu-latest`:
