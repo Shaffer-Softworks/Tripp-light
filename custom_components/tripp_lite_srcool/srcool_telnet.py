@@ -15,7 +15,6 @@ TELNET_TIMEOUT = 10
 RETRY_COUNT = 3
 RETRY_DELAY = 1
 STATUS_SCREEN_MARKER = "Device Status Menu"
-SETPOINT_SCREEN_MARKER = "Temperature (F)"
 
 
 class SRCOOLClient:
@@ -157,6 +156,17 @@ class SRCOOLClient:
         tn.write(b"M\r\n")
         tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
 
+    def _commit_control_value_unlocked(
+        self, tn: telnetlib.Telnet, value: str
+    ) -> None:
+        """Apply a Control Data edit (value entry, Execute, confirm)."""
+        tn.write(value.encode("ascii") + b"\r\n")
+        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+        tn.write(b"E\r\n")
+        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+        tn.write(b"Y\r\n")
+        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+
     def _read_devices_screen(
         self, tn: telnetlib.Telnet, submenu: bytes
     ) -> str:
@@ -205,22 +215,14 @@ class SRCOOLClient:
         return None
 
     @staticmethod
-    def _parse_target_temp(
-        setpoint_raw: str, prefs_raw: str
-    ) -> Optional[float]:
-        """Read target temperature from setpoint or preferences screen."""
-        match = re.search(
-            r"Value\s*:\s*([0-9]+(?:\.[0-9]+)?)", setpoint_raw
-        )
-        if match:
-            return float(match.group(1))
-        prefs_val = SRCOOLClient._extract_field(
+    def _parse_target_temp(prefs_raw: str) -> Optional[float]:
+        """Read committed setpoint from Preferences screen."""
+        return SRCOOLClient._extract_field(
             "Set Point Temperature",
             prefs_raw,
             lambda v: float(v.split()[0]),
             None,
         )
-        return prefs_val
 
     def _fetch_status_screens_unlocked(
         self, tn: telnetlib.Telnet
@@ -322,36 +324,13 @@ class SRCOOLClient:
         status["dehumidifying_status"] = dehumid.lower()
         status["units"] = extract("Units", prefs_raw)
 
-        try:
-            self._go_main_menu(tn)
-
-            tn.write(b"1\r\n")  # Devices
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-
-            tn.write(b"3\r\n")  # Controls
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-
-            tn.write(b"2\r\n")  # Set Set Point
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-
-            tn.write(b"1\r\n")  # Temperature (F)
-            setpoint_raw = tn.read_until(
-                PROMPT_READY, timeout=TELNET_TIMEOUT).decode(errors="ignore")
-            _LOGGER.debug("Set-Point Screen:\n%s", setpoint_raw)
-        except Exception as err:
-            _LOGGER.warning("get_status step B failed: %s", err)
-            raise
-
-        if SETPOINT_SCREEN_MARKER not in setpoint_raw:
-            raise ValueError(
-                "Unexpected setpoint screen (session out of sync)"
-            )
-
-        target_temp = self._parse_target_temp(setpoint_raw, prefs_raw)
+        target_temp = self._parse_target_temp(prefs_raw)
         if target_temp is not None:
             status["target_temp"] = target_temp
         else:
-            _LOGGER.warning("Could not parse target_temp from screen")
+            _LOGGER.warning(
+                "Could not parse Set Point Temperature from preferences"
+            )
 
         merged = {**device_info, **status}
 
@@ -412,8 +391,8 @@ class SRCOOLClient:
             tn.write(b"1\r\n")
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
 
-            tn.write(str(int(temp_f)).encode("ascii") + b"\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            self._commit_control_value_unlocked(tn, str(int(temp_f)))
+            self._go_main_menu(tn)
             _LOGGER.debug("Target temperature set to %s°F", int(temp_f))
         except Exception:
             self._disconnect_unlocked()
@@ -439,8 +418,11 @@ class SRCOOLClient:
             tn.write(b"4\r\n")
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
 
-            tn.write(code.encode("ascii") + b"\r\n")
+            tn.write(b"1\r\n")
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+
+            self._commit_control_value_unlocked(tn, code)
+            self._go_main_menu(tn)
             _LOGGER.debug("Fan speed set to %s", speed)
         except Exception:
             self._disconnect_unlocked()
@@ -461,8 +443,7 @@ class SRCOOLClient:
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
             tn.write(b"Y\r\n")
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            tn.write(b"E\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            self._go_main_menu(tn)
             _LOGGER.debug("Device shut down")
         except Exception:
             self._disconnect_unlocked()
@@ -481,6 +462,7 @@ class SRCOOLClient:
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
             tn.write(code)
             tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            self._go_main_menu(tn)
             _LOGGER.debug(
                 "Dehumidifying set to %s",
                 "on" if enabled else "off",
