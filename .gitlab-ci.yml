@@ -62,7 +62,18 @@ lint:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   before_script:
-    - docker version
+    - |
+      for attempt in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then
+          docker version
+          break
+        fi
+
+        echo "Waiting for Docker daemon (${attempt}/30)..."
+        sleep 2
+      done
+
+      docker info >/dev/null
 
 hassfest:
   extends: .docker_validation
