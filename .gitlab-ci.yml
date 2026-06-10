@@ -2,6 +2,10 @@ variables:
   GITHUB_REPOSITORY: "Shaffer-Softworks/Tripp-light"
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
+default:
+  tags:
+    - docker
+
 stages:
   - notify_start
   - lint
