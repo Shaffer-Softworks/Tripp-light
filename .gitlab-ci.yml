@@ -55,16 +55,24 @@ lint:
 .docker_validation:
   image: docker:27-cli
   stage: validate
+  resource_group: docker-validation
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   services:
     - name: docker:27-dind
       alias: docker
   variables:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
+    FF_NETWORK_PER_BUILD: "1"
   before_script:
     - |
-      for attempt in $(seq 1 30); do
-        if docker info >/dev/null 2>&1; then
+      for attempt in $(seq 1 45); do
+        if timeout 3 docker info >/dev/null 2>&1; then
           docker version
           break
         fi
