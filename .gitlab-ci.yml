@@ -52,15 +52,12 @@ lint:
     - flake8 custom_components
     - mypy custom_components
 
-# Use the host Docker socket when the runner mounts it; otherwise fall back to
-# docker:dind. Disable per-build networking so the job container can resolve
-# the dind service hostname (FF_NETWORK_PER_BUILD breaks that DNS).
+# Run dockerd inside the job container. Avoids flaky docker:dind service
+# networking on the runner (no route to host / DNS misbehaving). Requires the
+# runner config.toml to set privileged = true under [runners.docker].
 .docker_validation:
-  image: docker:27-cli
+  image: docker:27-dind
   stage: validate
-  services:
-    - name: docker:27-dind
-      alias: docker
   variables:
     DOCKER_TLS_CERTDIR: ""
     FF_NETWORK_PER_BUILD: "false"
@@ -70,20 +67,21 @@ lint:
         export DOCKER_HOST=unix:///var/run/docker.sock
         echo "Using host Docker socket."
       else
-        export DOCKER_HOST=tcp://docker:2375
-        echo "Using docker:dind service at ${DOCKER_HOST}."
-        for attempt in $(seq 1 30); do
+        echo "Using in-container Docker daemon."
+        for attempt in $(seq 1 60); do
           if docker info >/dev/null 2>&1; then
             docker version
-            break
+            exit 0
           fi
 
-          echo "Waiting for Docker daemon (${attempt}/30)..."
-          sleep 1
+          echo "Waiting for Docker daemon (${attempt}/60)..."
+          sleep 2
         done
-      fi
 
-      docker info >/dev/null
+        echo "Docker daemon did not become ready in time."
+        docker info
+        exit 1
+      fi
 
 integration_validation:
   extends: .docker_validation
