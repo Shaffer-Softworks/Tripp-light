@@ -59,29 +59,25 @@ lint:
   image: docker:27-dind
   stage: validate
   variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
     DOCKER_TLS_CERTDIR: ""
     FF_NETWORK_PER_BUILD: "false"
   before_script:
     - |
-      if [ -S /var/run/docker.sock ]; then
-        export DOCKER_HOST=unix:///var/run/docker.sock
-        echo "Using host Docker socket."
-      else
-        echo "Using in-container Docker daemon."
-        for attempt in $(seq 1 60); do
-          if docker info >/dev/null 2>&1; then
-            docker version
-            exit 0
-          fi
+      echo "DOCKER_HOST=${DOCKER_HOST}"
+      for attempt in $(seq 1 60); do
+        if docker info >/dev/null 2>&1; then
+          docker version
+          exit 0
+        fi
 
-          echo "Waiting for Docker daemon (${attempt}/60)..."
-          sleep 2
-        done
+        echo "Waiting for Docker daemon (${attempt}/60)..."
+        sleep 2
+      done
 
-        echo "Docker daemon did not become ready in time."
-        docker info
-        exit 1
-      fi
+      echo "Docker daemon did not become ready in time."
+      docker info
+      exit 1
 
 integration_validation:
   extends: .docker_validation
