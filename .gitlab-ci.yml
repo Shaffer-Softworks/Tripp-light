@@ -85,14 +85,10 @@ lint:
 
       docker info >/dev/null
 
-hassfest:
+integration_validation:
   extends: .docker_validation
   script:
     - docker run --rm -v "$CI_PROJECT_DIR:/github/workspace" ghcr.io/home-assistant/hassfest
-
-hacs:
-  extends: .docker_validation
-  script:
     - |
       docker run --rm \
         -e "INPUT_CATEGORY=integration" \
