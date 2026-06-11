@@ -52,36 +52,30 @@ lint:
     - flake8 custom_components
     - mypy custom_components
 
+# Run Docker inside the job container (not docker:dind as a service).
+# Avoids service DNS failures (lookup docker on 127.0.0.11:53) seen with
+# FF_NETWORK_PER_BUILD. Requires the runner to allow privileged jobs.
 .docker_validation:
-  image: docker:27-cli
+  image: docker:27-dind
   stage: validate
-  resource_group: docker-validation
-  retry:
-    max: 1
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - script_failure
-  services:
-    - name: docker:27-dind
-      alias: docker
+  privileged: true
   variables:
-    DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
-    FF_NETWORK_PER_BUILD: "1"
   before_script:
     - |
-      for attempt in $(seq 1 45); do
-        if timeout 3 docker info >/dev/null 2>&1; then
+      for attempt in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then
           docker version
-          break
+          exit 0
         fi
 
-        echo "Waiting for Docker daemon (${attempt}/45)..."
-        sleep 2
+        echo "Waiting for Docker daemon (${attempt}/30)..."
+        sleep 1
       done
 
-      docker info >/dev/null
+      echo "Docker daemon did not become ready in time."
+      docker info
+      exit 1
 
 hassfest:
   extends: .docker_validation
