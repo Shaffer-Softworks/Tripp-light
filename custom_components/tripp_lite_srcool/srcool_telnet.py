@@ -1,10 +1,15 @@
 """Telnet client for SRCOOL devices with persistent session management."""
+from __future__ import annotations
+
+import asyncio
 import logging
 import re
-import telnetlib
-import threading
-import time
-from typing import Any, Dict, Optional
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator, Dict, Optional
+
+import telnetlib3
+from telnetlib3.stream_reader import TelnetReader
+from telnetlib3.stream_writer import TelnetWriter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,166 +27,213 @@ FAN_SPEED_ALIASES = {
 
 
 class SRCOOLClient:
-    """Telnet client with one persistent session (serialized via lock)."""
+    """Async telnet client with one persistent session."""
 
-    def __init__(self, host: str, port: int, username: str, password: str):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        username: str,
+        password: str,
+        *,
+        host_lock: asyncio.Lock | None = None,
+    ):
         self._host = host
         self._port = port
         self._username = username
         self._password = password
-        self._tn: Optional[telnetlib.Telnet] = None
-        self._lock = threading.RLock()
+        self._reader: TelnetReader | None = None
+        self._writer: TelnetWriter | None = None
+        self._host_lock = host_lock or asyncio.Lock()
+        self._lock = asyncio.Lock()
 
-    def connect(self) -> None:
-        """(Re)establish the Telnet session and log in."""
-        with self._lock:
-            self._connect_unlocked()
-
-    def disconnect(self) -> None:
-        """Close the Telnet session."""
-        with self._lock:
-            self._disconnect_unlocked()
-
-    def verify_connection(self) -> None:
-        """Log in and disconnect; for config-flow validation only."""
-        with self._lock:
+    @asynccontextmanager
+    async def _session_lock(
+        self, *, host_lock_held: bool = False
+    ) -> AsyncIterator[None]:
+        if host_lock_held:
+            await self._lock.acquire()
             try:
-                self._connect_unlocked()
+                yield
             finally:
-                self._disconnect_unlocked()
+                self._lock.release()
+        else:
+            async with self._host_lock:
+                async with self._lock:
+                    yield
 
-    def get_status(
+    async def connect(self, *, host_lock_held: bool = False) -> None:
+        """(Re)establish the Telnet session and log in."""
+        async with self._session_lock(host_lock_held=host_lock_held):
+            await self._connect_unlocked()
+
+    async def disconnect(self, *, host_lock_held: bool = False) -> None:
+        """Close the Telnet session."""
+        async with self._session_lock(host_lock_held=host_lock_held):
+            await self._disconnect_unlocked()
+
+    async def verify_connection(self, *, host_lock_held: bool = False) -> None:
+        """Log in and disconnect; for config-flow validation only."""
+        async with self._session_lock(host_lock_held=host_lock_held):
+            try:
+                await self._connect_unlocked()
+            finally:
+                await self._disconnect_unlocked()
+
+    async def check_connection(self, *, host_lock_held: bool = False) -> None:
+        """Confirm the live session responds (M → >>). Used by config flow."""
+        async with self._session_lock(host_lock_held=host_lock_held):
+            if not self._writer:
+                await self._connect_unlocked()
+            await self._go_main_menu_unlocked()
+
+    async def get_status(
         self, *, include_diagnostics: bool = False
     ) -> Dict[str, Any]:
         """Fetch device info, status, and set-point; diagnostics optional."""
-        with self._lock:
-            return self._get_status_unlocked(
+        async with self._session_lock():
+            return await self._get_status_unlocked(
                 include_diagnostics=include_diagnostics,
             )
 
-    def get_diagnostics(self) -> Dict[str, Optional[str]]:
+    async def get_diagnostics(self) -> Dict[str, Optional[str]]:
         """Fetch the About/Diagnostics screen (menu 5)."""
-        with self._lock:
-            return self._get_diagnostics_unlocked()
+        async with self._session_lock():
+            return await self._get_diagnostics_unlocked()
 
-    def set_target_temp(self, temp_f: float) -> None:
+    async def set_target_temp(self, temp_f: float) -> None:
         """Set the target temperature in Fahrenheit."""
-        with self._lock:
-            self._set_target_temp_unlocked(temp_f)
+        async with self._session_lock():
+            await self._set_target_temp_unlocked(temp_f)
 
-    def set_fan(self, speed: str) -> None:
+    async def set_fan(self, speed: str) -> None:
         """Set the fan speed to low, medium, high, or auto."""
-        with self._lock:
-            self._set_fan_unlocked(speed)
+        async with self._session_lock():
+            await self._set_fan_unlocked(speed)
 
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         """Shut down the cooling unit (telnet has no power-on command)."""
-        with self._lock:
-            self._shutdown_unlocked()
+        async with self._session_lock():
+            await self._shutdown_unlocked()
 
-    def set_dehumidifying(self, enabled: bool) -> None:
+    async def set_dehumidifying(self, enabled: bool) -> None:
         """Enable or disable dehumidifying mode."""
-        with self._lock:
-            self._set_dehumidifying_unlocked(enabled)
+        async with self._session_lock():
+            await self._set_dehumidifying_unlocked(enabled)
 
-    def _connect_unlocked(self) -> None:
+    async def _write_unlocked(self, data: bytes) -> None:
+        assert self._writer is not None
+        self._writer.write(data)
+        await self._writer.drain()
+
+    async def _read_until_unlocked(
+        self, sep: bytes, *, timeout: float = TELNET_TIMEOUT
+    ) -> str:
+        assert self._reader is not None
+        raw = await asyncio.wait_for(
+            self._reader.readuntil(sep), timeout=timeout
+        )
+        return raw.decode("ascii", "ignore")
+
+    async def _close_writer_unlocked(self) -> None:
+        if not self._writer:
+            return
+        try:
+            self._writer.close()
+            await self._writer.wait_closed()
+        except Exception:
+            pass
+        self._reader = None
+        self._writer = None
+
+    async def _connect_unlocked(self) -> None:
         """(Re)establish session; caller must hold _lock."""
         last_exc: Optional[Exception] = None
-        tn: Optional[telnetlib.Telnet] = None
 
         for attempt in range(1, RETRY_COUNT + 1):
+            reader: TelnetReaderUnicode | None = None
+            writer: TelnetWriterUnicode | None = None
             try:
                 _LOGGER.debug(
                     "Connecting to %s:%d (attempt %d)",
                     self._host, self._port, attempt,
                 )
-                tn = telnetlib.Telnet(
-                    self._host, self._port, timeout=TELNET_TIMEOUT)
+                reader, writer = await telnetlib3.open_connection(
+                    self._host,
+                    self._port,
+                    connect_timeout=TELNET_TIMEOUT,
+                    encoding=False,
+                )
+                self._reader = reader
+                self._writer = writer
 
-                tn.read_until(PROMPT_LOGIN, TELNET_TIMEOUT)
-                tn.write(self._username.encode("ascii") + b"\r\n")
+                await self._read_until_unlocked(PROMPT_LOGIN)
+                await self._write_unlocked(self._username.encode("ascii") + b"\r\n")
 
-                tn.read_until(PROMPT_PASSWORD, TELNET_TIMEOUT)
-                tn.write(self._password.encode("ascii") + b"\r\n")
+                await self._read_until_unlocked(PROMPT_PASSWORD)
+                await self._write_unlocked(self._password.encode("ascii") + b"\r\n")
 
-                tn.read_until(PROMPT_READY, TELNET_TIMEOUT)
+                await self._read_until_unlocked(PROMPT_READY)
                 _LOGGER.debug("Login successful on attempt %d", attempt)
-
-                self._tn = tn
                 return
 
             except Exception as exc:
                 last_exc = exc
                 _LOGGER.warning("Login attempt %d failed: %s", attempt, exc)
-                if tn is not None:
-                    try:
-                        tn.close()
-                    except Exception:
-                        pass
-                    tn = None
+                self._reader = reader
+                self._writer = writer
+                await self._close_writer_unlocked()
                 if attempt < RETRY_COUNT:
-                    time.sleep(RETRY_DELAY)
+                    await asyncio.sleep(RETRY_DELAY)
 
         _LOGGER.error("All %d login attempts failed", RETRY_COUNT)
         raise ConnectionError(
             f"Could not connect/login to SRCOOL: {last_exc}") from last_exc
 
-    def _disconnect_unlocked(self) -> None:
+    async def _disconnect_unlocked(self) -> None:
         """Close session; caller must hold _lock."""
-        if not self._tn:
+        if not self._writer:
             return
 
-        status_raw: Optional[bytes] = None
+        status_raw: Optional[str] = None
         try:
-            self._tn.write(b"M\r\n")
-            self._tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"M\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            self._tn.write(b"Q\r\n")
-            status_raw = self._tn.read_until(
-                PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"Q\r\n")
+            status_raw = await self._read_until_unlocked(PROMPT_READY)
         except Exception:
             pass
-        try:
-            self._tn.close()
-        except Exception:
-            pass
-        self._tn = None
+        await self._close_writer_unlocked()
         if status_raw is not None:
             _LOGGER.debug("Quit screen:\n%s", status_raw)
         _LOGGER.debug("Telnet session closed.")
 
-    def _ensure_connection_unlocked(self) -> telnetlib.Telnet:
-        """Return a live session; caller must hold _lock."""
-        if not self._tn:
-            self._connect_unlocked()
-        return self._tn  # type: ignore[return-value]
+    async def _ensure_connection_unlocked(self) -> None:
+        """Ensure a live session; caller must hold _lock."""
+        if not self._writer:
+            await self._connect_unlocked()
 
-    def _go_main_menu(self, tn: telnetlib.Telnet) -> None:
-        tn.write(b"M\r\n")
-        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+    async def _go_main_menu_unlocked(self) -> None:
+        await self._write_unlocked(b"M\r\n")
+        await self._read_until_unlocked(PROMPT_READY)
 
-    def _commit_control_value_unlocked(
-        self, tn: telnetlib.Telnet, value: str
-    ) -> None:
+    async def _commit_control_value_unlocked(self, value: str) -> None:
         """Apply a Control Data edit (value entry, Execute, confirm)."""
-        tn.write(value.encode("ascii") + b"\r\n")
-        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-        tn.write(b"E\r\n")
-        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-        tn.write(b"Y\r\n")
-        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+        await self._write_unlocked(value.encode("ascii") + b"\r\n")
+        await self._read_until_unlocked(PROMPT_READY)
+        await self._write_unlocked(b"E\r\n")
+        await self._read_until_unlocked(PROMPT_READY)
+        await self._write_unlocked(b"Y\r\n")
+        await self._read_until_unlocked(PROMPT_READY)
 
-    def _read_devices_screen(
-        self, tn: telnetlib.Telnet, submenu: bytes
-    ) -> str:
+    async def _read_devices_screen(self, submenu: bytes) -> str:
         """Navigate M → Devices → submenu and return the screen text."""
-        self._go_main_menu(tn)
-        tn.write(b"1\r\n")
-        tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-        tn.write(submenu)
-        return tn.read_until(
-            PROMPT_READY, TELNET_TIMEOUT
-        ).decode("ascii", "ignore")
+        await self._go_main_menu_unlocked()
+        await self._write_unlocked(b"1\r\n")
+        await self._read_until_unlocked(PROMPT_READY)
+        await self._write_unlocked(submenu)
+        return await self._read_until_unlocked(PROMPT_READY)
 
     @staticmethod
     def _extract_field(
@@ -236,29 +288,29 @@ class SRCOOLClient:
             None,
         )
 
-    def _fetch_status_screens_unlocked(
-        self, tn: telnetlib.Telnet
+    async def _fetch_status_screens_unlocked(
+        self,
     ) -> tuple[str, str, str]:
         """Read status, identification, and preferences screens."""
-        status_raw = self._read_devices_screen(tn, b"1\r\n")
+        status_raw = await self._read_devices_screen(b"1\r\n")
         if STATUS_SCREEN_MARKER not in status_raw:
             raise ValueError(
                 "Unexpected status screen (session out of sync)"
             )
-        id_raw = self._read_devices_screen(tn, b"2\r\n")
-        prefs_raw = self._read_devices_screen(tn, b"5\r\n")
+        id_raw = await self._read_devices_screen(b"2\r\n")
+        prefs_raw = await self._read_devices_screen(b"5\r\n")
         return status_raw, id_raw, prefs_raw
 
-    def _get_status_unlocked(
+    async def _get_status_unlocked(
         self, *, include_diagnostics: bool
     ) -> Dict[str, Any]:
         last_err: Optional[Exception] = None
 
         for attempt in range(1, 3):
-            tn = self._ensure_connection_unlocked()
+            await self._ensure_connection_unlocked()
             try:
-                merged = self._get_status_once_unlocked(
-                    tn, include_diagnostics=include_diagnostics
+                merged = await self._get_status_once_unlocked(
+                    include_diagnostics=include_diagnostics
                 )
                 return merged
             except Exception as err:
@@ -267,21 +319,20 @@ class SRCOOLClient:
                     "get_status attempt %d failed, reconnecting: %s",
                     attempt, err,
                 )
-                self._disconnect_unlocked()
+                await self._disconnect_unlocked()
 
         raise ConnectionError(
             f"Could not read SRCOOL status: {last_err}"
         ) from last_err
 
-    def _get_status_once_unlocked(
+    async def _get_status_once_unlocked(
         self,
-        tn: telnetlib.Telnet,
         *,
         include_diagnostics: bool,
     ) -> Dict[str, Any]:
         try:
             status_raw, id_raw, prefs_raw = (
-                self._fetch_status_screens_unlocked(tn)
+                await self._fetch_status_screens_unlocked()
             )
         except Exception as err:
             _LOGGER.warning("get_status step A failed: %s", err)
@@ -353,24 +404,22 @@ class SRCOOLClient:
 
         if include_diagnostics:
             try:
-                merged.update(self._get_diagnostics_unlocked())
+                merged.update(await self._get_diagnostics_unlocked())
             except Exception as err:
                 _LOGGER.warning("Error fetching diagnostics: %s", err)
 
         _LOGGER.debug("Final merged status: %s", merged)
         return merged
 
-    def _get_diagnostics_unlocked(self) -> Dict[str, Optional[str]]:
-        tn = self._ensure_connection_unlocked()
+    async def _get_diagnostics_unlocked(self) -> Dict[str, Optional[str]]:
+        await self._ensure_connection_unlocked()
         try:
-            self._go_main_menu(tn)
-
-            tn.write(b"5\r\n")
-            raw = tn.read_until(PROMPT_READY, TELNET_TIMEOUT).decode(
-                "ascii", "ignore")
+            await self._go_main_menu_unlocked()
+            await self._write_unlocked(b"5\r\n")
+            raw = await self._read_until_unlocked(PROMPT_READY)
         except Exception as err:
             _LOGGER.warning("get_diagnostics failed, reconnecting: %s", err)
-            self._disconnect_unlocked()
+            await self._disconnect_unlocked()
             raise
 
         _LOGGER.debug("Diagnostics screen:\n%s", raw)
@@ -391,99 +440,99 @@ class SRCOOLClient:
             "driver_file_status":  extract("Driver File Status", raw),
         }
 
-    def _set_target_temp_unlocked(self, temp_f: float) -> None:
-        tn = self._ensure_connection_unlocked()
+    async def _set_target_temp_unlocked(self, temp_f: float) -> None:
+        await self._ensure_connection_unlocked()
         try:
-            self._go_main_menu(tn)
+            await self._go_main_menu_unlocked()
 
-            tn.write(b"1\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"1\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"3\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"3\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"2\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"2\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"1\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"1\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            self._commit_control_value_unlocked(tn, str(int(temp_f)))
-            self._go_main_menu(tn)
+            await self._commit_control_value_unlocked(str(int(temp_f)))
+            await self._go_main_menu_unlocked()
             _LOGGER.debug("Target temperature set to %s°F", int(temp_f))
         except Exception:
-            self._disconnect_unlocked()
+            await self._disconnect_unlocked()
             raise
 
-    def _set_fan_unlocked(self, speed: str) -> None:
+    async def _set_fan_unlocked(self, speed: str) -> None:
         code_map = {"low": "1", "medium": "2", "high": "3", "auto": "0"}
         code = code_map.get(speed.lower())
         if not code:
             _LOGGER.error("Invalid fan speed: %s", speed)
             return
 
-        tn = self._ensure_connection_unlocked()
+        await self._ensure_connection_unlocked()
         try:
-            self._go_main_menu(tn)
+            await self._go_main_menu_unlocked()
 
-            tn.write(b"1\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"1\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"3\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"3\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"4\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"4\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"1\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"1\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
 
-            self._commit_control_value_unlocked(tn, code)
-            self._go_main_menu(tn)
+            await self._commit_control_value_unlocked(code)
+            await self._go_main_menu_unlocked()
             _LOGGER.debug("Fan speed set to %s", speed)
         except Exception:
-            self._disconnect_unlocked()
+            await self._disconnect_unlocked()
             raise
 
-    def _shutdown_unlocked(self) -> None:
-        tn = self._ensure_connection_unlocked()
+    async def _shutdown_unlocked(self) -> None:
+        await self._ensure_connection_unlocked()
         try:
-            self._go_main_menu(tn)
+            await self._go_main_menu_unlocked()
 
-            tn.write(b"1\r\n")  # Devices
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"1\r\n")  # Devices
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"3\r\n")  # Controls
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
+            await self._write_unlocked(b"3\r\n")  # Controls
+            await self._read_until_unlocked(PROMPT_READY)
 
-            tn.write(b"3\r\n")  # Shut down device
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            tn.write(b"Y\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            self._go_main_menu(tn)
+            await self._write_unlocked(b"3\r\n")  # Shut down device
+            await self._read_until_unlocked(PROMPT_READY)
+            await self._write_unlocked(b"Y\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
+            await self._go_main_menu_unlocked()
             _LOGGER.debug("Device shut down")
         except Exception:
-            self._disconnect_unlocked()
+            await self._disconnect_unlocked()
             raise
 
-    def _set_dehumidifying_unlocked(self, enabled: bool) -> None:
+    async def _set_dehumidifying_unlocked(self, enabled: bool) -> None:
         code = b"2\r\n" if enabled else b"1\r\n"
-        tn = self._ensure_connection_unlocked()
+        await self._ensure_connection_unlocked()
         try:
-            self._go_main_menu(tn)
-            tn.write(b"1\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            tn.write(b"5\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            tn.write(b"1\r\n")
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            tn.write(code)
-            tn.read_until(PROMPT_READY, timeout=TELNET_TIMEOUT)
-            self._go_main_menu(tn)
+            await self._go_main_menu_unlocked()
+            await self._write_unlocked(b"1\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
+            await self._write_unlocked(b"5\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
+            await self._write_unlocked(b"1\r\n")
+            await self._read_until_unlocked(PROMPT_READY)
+            await self._write_unlocked(code)
+            await self._read_until_unlocked(PROMPT_READY)
+            await self._go_main_menu_unlocked()
             _LOGGER.debug(
                 "Dehumidifying set to %s",
                 "on" if enabled else "off",
             )
         except Exception:
-            self._disconnect_unlocked()
+            await self._disconnect_unlocked()
             raise

@@ -5,8 +5,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 
+from .connection import async_validate_connection
 from .const import DEFAULT_PORT, DOMAIN
-from .srcool_telnet import SRCOOLClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,16 +34,8 @@ class TrippLiteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(user_input["host"])
             self._abort_if_unique_id_configured()
 
-            client = SRCOOLClient(
-                user_input["host"],
-                user_input["port"],
-                user_input["username"],
-                user_input["password"],
-            )
             try:
-                await self.hass.async_add_executor_job(
-                    client.verify_connection
-                )
+                await async_validate_connection(self.hass, user_input)
             except ConnectionError:
                 _LOGGER.exception("SRCOOL cannot_connect")
                 errors["base"] = "cannot_connect"
@@ -55,6 +47,47 @@ class TrippLiteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", data_schema=DATA_SCHEMA, errors=errors
+        )
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Handle reconfiguration of an existing entry."""
+        errors: dict[str, str] = {}
+        reconfigure_entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            try:
+                await async_validate_connection(
+                    self.hass,
+                    user_input,
+                    config_entry=reconfigure_entry,
+                )
+            except ConnectionError:
+                _LOGGER.exception("SRCOOL cannot_connect")
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(
+                    reconfigure_entry,
+                    data=user_input,
+                )
+
+        current = {}
+        current.update(reconfigure_entry.data or {})
+
+        schema = vol.Schema(
+            {
+                vol.Required("host", default=current.get("host")): str,
+                vol.Required(
+                    "port", default=current.get("port", DEFAULT_PORT)
+                ): int,
+                vol.Required("username", default=current.get("username")): str,
+                vol.Required("password", default=current.get("password")): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
+            errors=errors,
         )
 
     @staticmethod
@@ -80,23 +113,24 @@ class TrippLiteOptionsFlowHandler(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            client = SRCOOLClient(
-                user_input["host"],
-                user_input["port"],
-                user_input["username"],
-                user_input["password"],
-            )
             try:
-                await self.hass.async_add_executor_job(
-                    client.verify_connection
+                await async_validate_connection(
+                    self.hass,
+                    user_input,
+                    config_entry=self._config_entry,
                 )
             except ConnectionError:
                 _LOGGER.exception("SRCOOL cannot_connect")
                 errors["base"] = "cannot_connect"
             else:
-                return self.async_create_entry(
-                    title="", data=user_input
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data=user_input,
                 )
+                await self.hass.config_entries.async_reload(
+                    self._config_entry.entry_id
+                )
+                return self.async_create_entry(title="", data={})
 
         current = {}
         current.update(self._config_entry.data or {})

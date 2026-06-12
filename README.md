@@ -81,7 +81,8 @@ The SRCOOLNET Telnet interface has important constraints:
 | Topic | Behavior |
 |-------|----------|
 | **Power on** | **Not available** via telnet. Controls menu item `1` is **Reboot SNMP Card**, not start. Selecting **COOL** on the climate entity is ignored; only **OFF** (shutdown) is sent to the device. Power the unit on from the front panel or PowerAlert web UI. |
-| **Polling** | One Telnet session, **60 s** interval. The adapter does not tolerate frequent or overlapping requests. |
+| **Polling** | One async Telnet session per host, **60 s** interval. A host-level lock prevents overlapping sessions during reconfigure validation. The adapter does not tolerate frequent or overlapping requests. |
+| **Dependencies** | Requires **telnetlib3** (PyPI; auto-installed by Home Assistant). Python **3.13** compatible from v0.6.0+. |
 | **Quiet mode** | Read-only — no telnet control path |
 | **Diagnostics** | Card firmware/details refresh on startup and every **hour**; cached between refreshes |
 
@@ -153,7 +154,7 @@ Restart Home Assistant, then add the integration from **Settings** → **Devices
 | Username | Telnet username (often `localadmin`) |
 | Password | Telnet password |
 
-Use **Reconfigure** on the integration entry if credentials change.
+Use **Reconfigure** on the integration entry if credentials change. Reconfigure with **unchanged** credentials validates the existing session without opening a second connection. When credentials change, the live session disconnects briefly for validation, then the integration reloads. After upgrading to **0.6.0+**, reload the integration once so Home Assistant installs `telnetlib3`.
 
 ---
 
