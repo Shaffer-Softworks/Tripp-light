@@ -135,7 +135,11 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
         """Handle UI fan mode changes."""
         _LOGGER.debug("UI set fan mode → %s", fan_mode)
         await self.hass.async_add_executor_job(self._client.set_fan, fan_mode)
-        self._merge_coordinator_data(fan=fan_mode.lower())
+        fan = fan_mode.lower()
+        self._merge_coordinator_data(
+            fan=fan,
+            auto_fan="on" if fan == "auto" else "off",
+        )
         self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode):

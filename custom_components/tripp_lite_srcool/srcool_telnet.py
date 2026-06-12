@@ -16,6 +16,10 @@ RETRY_COUNT = 3
 RETRY_DELAY = 1
 STATUS_SCREEN_MARKER = "Device Status Menu"
 
+FAN_SPEED_ALIASES = {
+    'med': 'medium',
+}
+
 
 class SRCOOLClient:
     """Telnet client with one persistent session (serialized via lock)."""
@@ -203,6 +207,14 @@ class SRCOOLClient:
         return default
 
     @staticmethod
+    def _normalize_fan_speed(value: Optional[str]) -> Optional[str]:
+        """Map device fan labels to integration fan modes."""
+        if not value:
+            return None
+        normalized = value.lower()
+        return FAN_SPEED_ALIASES.get(normalized, normalized)
+
+    @staticmethod
     def _parse_fan_speed(status_raw: str) -> Optional[str]:
         """Return fan speed from status screen (not Auto Fan Speed)."""
         for line in status_raw.splitlines():
@@ -211,7 +223,7 @@ class SRCOOLClient:
                 continue
             match = re.match(r"Fan Speed\s*:\s*(\S+)", stripped, re.I)
             if match:
-                return match.group(1).lower()
+                return SRCOOLClient._normalize_fan_speed(match.group(1))
         return None
 
     @staticmethod
@@ -314,11 +326,16 @@ class SRCOOLClient:
             ).lower(),
         }
 
-        fan_value = self._parse_fan_speed(status_raw)
-        if not fan_value:
-            _LOGGER.warning("Could not parse Fan Speed in status screen")
-            fan_value = "unknown"
-        status["fan"] = fan_value
+        if status["auto_fan"] == "on":
+            status["fan"] = "auto"
+        else:
+            fan_value = self._parse_fan_speed(status_raw)
+            if not fan_value:
+                _LOGGER.warning(
+                    "Could not parse Fan Speed in status screen"
+                )
+                fan_value = "unknown"
+            status["fan"] = fan_value
 
         dehumid = extract("Dehumidifying Status", prefs_raw) or "unknown"
         status["dehumidifying_status"] = dehumid.lower()
