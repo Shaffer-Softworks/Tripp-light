@@ -151,8 +151,8 @@ class SRCOOLClient:
         last_exc: Optional[Exception] = None
 
         for attempt in range(1, RETRY_COUNT + 1):
-            reader: TelnetReaderUnicode | None = None
-            writer: TelnetWriterUnicode | None = None
+            reader: TelnetReader | None = None
+            writer: TelnetWriter | None = None
             try:
                 _LOGGER.debug(
                     "Connecting to %s:%d (attempt %d)",

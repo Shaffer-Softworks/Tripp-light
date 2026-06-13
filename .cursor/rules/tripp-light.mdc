@@ -27,6 +27,7 @@ mypy.ini                           # mypy config for CI
 pytest.ini                         # pytest config
 README.md, icon.png                # README art; source for brand/ assets
 .github/workflows/ci.yml
+docker/                            # dev HA compose + config (see docker/README.md)
 tests/                             # pytest suite
 custom_components/tripp_lite_srcool/
   __init__.py, manifest.json
@@ -45,7 +46,7 @@ custom_components/tripp_lite_srcool/
 
 - Keys: `domain`, `name`, then **alphabetically** (`codeowners`, `config_flow`, `documentation`, `iot_class`, `issue_tracker`, `requirements`, `version`).
 - **Do not** include `icon` or `platforms` — hassfest rejects them for integrations.
-- Bump `version` on each release (currently **0.6.0**).
+- Bump `version` on each release (currently **0.6.1**).
 - **`requirements`:** `telnetlib3>=4.0.0` (replaces stdlib `telnetlib`, removed in Python 3.13).
 
 ## Brand images (`brand/`)
@@ -68,7 +69,7 @@ Do not add per-entity polling or `async_request_refresh()` after climate writes.
 
 | Concern | Pattern |
 |--------|---------|
-| Telnet library | **telnetlib3** async (`open_connection` + reader/writer) |
+| Telnet library | **telnetlib3** async (`open_connection`, `encoding=False`, byte I/O) |
 | Serialize I/O | `asyncio.Lock` per client + per-host lock via `get_host_lock()` in `connection.py` |
 | One session | Single `SRCOOLClient` per config entry in `hass.data`; host lock prevents config-flow overlap |
 | Poll interval | `SCAN_INTERVAL = 60` in `const.py` |
@@ -141,6 +142,21 @@ Setpoint and fan edits are **two-step** on the SNMP card: enter value on edit sc
 - Target temp: `_parse_target_temp()` reads `Set Point Temperature` from Preferences (`prefs_raw`) only.
 
 **Do not** open a second telnet client to the SRCOOLNET card while HA is polling.
+
+## telnetlib3 migration (v0.6.x, branch `telnetlib3-upgrade`)
+
+**Completed (2026-06-12):**
+
+- Replaced stdlib `telnetlib` with **telnetlib3** async client in `srcool_telnet.py`.
+- All I/O is native async (`await client.*`); removed `async_add_executor_job` from platforms and coordinator.
+- **`connection.py`:** `get_host_lock()` + `async_validate_connection()` — config/reconfigure never opens a second TCP session when credentials unchanged (`check_connection()` on live session).
+- **`encoding=False`** with byte prompts/writes — required for live SRCOOLNET; `encoding='ascii'` with str separators fails at runtime (`TypeError` in `readuntil`).
+- Tests: `tests/` (14 pytest cases); CI Python 3.11 + 3.13.
+- Docker dev stack verified against `10.10.0.61` via loaded integration (entities, 60s poll, reload).
+
+**Gitignore (docker runtime — never commit):** `docker/config/.storage/`, `.cache/`, `.ha_run.lock`, `home-assistant_v2.db*`, `home-assistant.log*`, `.HA_VERSION`.
+
+**Scripts:** `scripts/docker_live_test.py` (telnet only), `scripts/ha_docker_check.py` (HA entity states from dev DB).
 
 ## Docker dev Home Assistant (testing)
 

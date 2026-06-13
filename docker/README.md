@@ -59,7 +59,7 @@ python3 scripts/docker_live_test.py --host 10.10.0.61 --polls 5
 |------|--------|
 | UI | http://localhost:8125 |
 | Container name | `tripp-light-ha` |
-| Config / DB | `docker/config/` (gitignored runtime files) |
+| Config / DB | `docker/config/` (runtime under `.storage/`, `.cache/`, `.ha_run.lock`, `home-assistant_v2.db*` — gitignored) |
 | Integration mount | `../custom_components/tripp_lite_srcool` → `/config/custom_components/tripp_lite_srcool` |
 
 Production Home Assistant typically uses port **8123**; this dev instance uses **8125** so both can run at once.
@@ -75,7 +75,7 @@ To wipe onboarding, integrations, and entity history:
 ```bash
 cd docker
 docker compose down
-rm -rf config/.storage config/home-assistant_v2.db* config/.HA_VERSION
+rm -rf config/.storage config/.cache config/.ha_run.lock config/home-assistant_v2.db* config/.HA_VERSION
 docker compose up -d
 ```
 
