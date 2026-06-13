@@ -167,6 +167,30 @@ Set on GitHub so HACS validation passes:
 
 ---
 
+## Development
+
+### Docker dev Home Assistant
+
+Use the bundled compose stack to test the integration without touching production Home Assistant:
+
+```bash
+cd docker
+docker compose up -d
+```
+
+Open **http://localhost:8125**, complete onboarding, then add **Tripp Lite SRCOOL**. The integration source is bind-mounted from this repo.
+
+See [docker/README.md](docker/README.md) for logs, reload, reset, and verification scripts.
+
+### Tests
+
+```bash
+pip install pytest pytest-asyncio pytest-homeassistant-custom-component telnetlib3
+pytest tests/
+```
+
+---
+
 ## Support
 
 - [Documentation](https://github.com/Shaffer-Softworks/Tripp-light)

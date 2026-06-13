@@ -142,9 +142,19 @@ Setpoint and fan edits are **two-step** on the SNMP card: enter value on edit sc
 
 **Do not** open a second telnet client to the SRCOOLNET card while HA is polling.
 
-**Debug on user HA:** MCP `ha_get_logs` source `system`/`error_log` search `tripp_lite_srcool`; entities `sensor.srcool_fan_speed`, `sensor.srcool_auto_fan`, `sensor.srcool_operating_mode`, `climate.climate_control_tripp_lite_srcool`. User unit: `10.10.0.61`, config entry `SRCOOL 10.10.0.61`, currently **v0.6.0**.
+## Docker dev Home Assistant (testing)
 
-**Live verify (read-only):** from repo root, `await SRCOOLClient(host, 23, ...).get_status()` against `10.10.0.61`; stress-test 25 polls; desync test: leave session on Devices menu then call `get_status()` — should auto-recover.
+**Use Docker for integration testing — not production HA.**
+
+- Stack: `docker/docker-compose.yml` → container `tripp-light-ha`, UI **http://localhost:8125** (port 8125 avoids clashing with prod on 8123).
+- Bind-mount: `custom_components/tripp_lite_srcool` from repo; debug logging in `docker/config/configuration.yaml`.
+- Start: `cd docker && docker compose up -d`. Full guide: `docker/README.md`.
+- Verify entities/config: `python3 scripts/ha_docker_check.py` (reads `docker/config/home-assistant_v2.db`).
+- Do **not** use Home Assistant MCP against prod for routine testing unless the user explicitly asks. Prefer Docker UI, dev logs (`docker compose logs -f`), and `ha_docker_check.py`.
+
+**Hardware (SRCOOLNET):** live telnet unit at `10.10.0.61` — shared by dev Docker and prod; only one telnet session at a time across all clients.
+
+**Live verify (read-only, telnet):** from repo root, `python3 scripts/docker_live_test.py --host 10.10.0.61` or `await SRCOOLClient(...).get_status()`; stress-test 25 polls; desync test: leave session on Devices menu then call `get_status()` — should auto-recover.
 
 ## CI (`.github/workflows/ci.yml`)
 
