@@ -168,10 +168,14 @@ class SRCOOLClient:
                 self._writer = writer
 
                 await self._read_until_unlocked(PROMPT_LOGIN)
-                await self._write_unlocked(self._username.encode("ascii") + b"\r\n")
+                await self._write_unlocked(
+                    self._username.encode("ascii") + b"\r\n",
+                )
 
                 await self._read_until_unlocked(PROMPT_PASSWORD)
-                await self._write_unlocked(self._password.encode("ascii") + b"\r\n")
+                await self._write_unlocked(
+                    self._password.encode("ascii") + b"\r\n",
+                )
 
                 await self._read_until_unlocked(PROMPT_READY)
                 _LOGGER.debug("Login successful on attempt %d", attempt)
