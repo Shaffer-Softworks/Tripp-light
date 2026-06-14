@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.11]
+        python-version: [3.11, 3.13]
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -25,19 +25,23 @@ jobs:
       - name: Install dev dependencies
         run: |
           pip install --upgrade pip
-          pip install black isort flake8 mypy homeassistant
+          pip install black isort flake8 mypy homeassistant telnetlib3 \
+            pytest pytest-asyncio pytest-homeassistant-custom-component
 
       #- name: Black formatting check
       #  run: black --check .
 
       - name: isort import sort check
-        run: isort --check-only custom_components
+        run: isort --check-only custom_components tests
 
       - name: Flake8 lint
-        run: flake8 custom_components
+        run: flake8 custom_components tests
 
       - name: Mypy type check
         run: mypy custom_components
+
+      - name: pytest
+        run: pytest tests/
 
       - name: Home Assistant manifest validation (hassfest)
         uses: home-assistant/actions/hassfest@master

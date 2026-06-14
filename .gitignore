@@ -8,3 +8,9 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+docker/config/.storage/
+docker/config/.cache/
+docker/config/.ha_run.lock
+docker/config/home-assistant.log*
+docker/config/home-assistant_v2.db*
+docker/config/.HA_VERSION

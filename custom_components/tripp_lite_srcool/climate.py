@@ -124,9 +124,7 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
         """Handle UI temperature changes."""
         temp = float(kwargs.get("temperature"))
         _LOGGER.debug("UI set temperature → %s°F", temp)
-        await self.hass.async_add_executor_job(
-            self._client.set_target_temp, temp
-        )
+        await self._client.set_target_temp(temp)
         self._target_temperature = temp
         self._merge_coordinator_data(target_temp=temp)
         self.async_write_ha_state()
@@ -134,7 +132,7 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
     async def async_set_fan_mode(self, fan_mode: str):
         """Handle UI fan mode changes."""
         _LOGGER.debug("UI set fan mode → %s", fan_mode)
-        await self.hass.async_add_executor_job(self._client.set_fan, fan_mode)
+        await self._client.set_fan(fan_mode)
         fan = fan_mode.lower()
         self._merge_coordinator_data(
             fan=fan,
@@ -151,6 +149,6 @@ class SRCOOLClimate(CoordinatorEntity, ClimateEntity):
             )
             return
         _LOGGER.debug("UI set HVAC mode → %s", hvac_mode)
-        await self.hass.async_add_executor_job(self._client.shutdown)
+        await self._client.shutdown()
         self._merge_coordinator_data(mode="off")
         self.async_write_ha_state()

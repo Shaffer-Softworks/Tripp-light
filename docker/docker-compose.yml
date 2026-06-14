@@ -1,0 +1,12 @@
+services:
+  homeassistant:
+    container_name: tripp-light-ha
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - ./config:/config
+      - ../custom_components/tripp_lite_srcool:/config/custom_components/tripp_lite_srcool
+    ports:
+      - "8125:8123"
+    environment:
+      - TZ=America/New_York
+    restart: unless-stopped

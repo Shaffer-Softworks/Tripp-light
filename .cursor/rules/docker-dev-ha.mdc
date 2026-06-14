@@ -1,0 +1,36 @@
+---
+description: Use Docker dev Home Assistant for integration testing (not prod)
+alwaysApply: true
+---
+
+# Docker dev Home Assistant (testing)
+
+**User preference:** integration testing uses the dedicated Docker stack, **not** production Home Assistant.
+
+## Dev instance
+
+| Item | Value |
+|------|--------|
+| Start | `cd docker && docker compose up -d` |
+| UI | http://localhost:8125 |
+| Container | `tripp-light-ha` |
+| Config / DB | `docker/config/` (runtime gitignored) |
+| Integration mount | repo `custom_components/tripp_lite_srcool` bind-mounted live |
+| Full guide | `docker/README.md` |
+
+## Agent workflow
+
+- **Do not** use Home Assistant MCP against prod for routine testing unless the user explicitly asks.
+- Prefer: Docker UI, `docker compose logs -f`, `python3 scripts/ha_docker_check.py`.
+- Live telnet (no HA): `python3 scripts/docker_live_test.py --host 10.10.0.61`.
+- Unit tests: `pytest tests/` (no HA required).
+
+## Hardware constraint
+
+SRCOOLNET at `10.10.0.61` allows **one telnet session** at a time. Do not run dev Docker and prod HA polling against it simultaneously, and do not open extra telnet clients during HA polls.
+
+## After code changes
+
+- Python-only edits: reload integration in Docker UI.
+- `manifest.json` requirements/version: `docker compose restart`.
+- Reset dev HA: see `docker/README.md` (wipe `docker/config/.storage` + DB).

@@ -58,18 +58,14 @@ class SRCOOLDehumidifyingSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs):
         """Enable dehumidifying mode."""
         _LOGGER.debug("UI enable dehumidifying")
-        await self.hass.async_add_executor_job(
-            self._client.set_dehumidifying, True,
-        )
+        await self._client.set_dehumidifying(True)
         self._merge_coordinator_data(dehumidifying_status="dehumidifying")
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs):
         """Disable dehumidifying mode."""
         _LOGGER.debug("UI disable dehumidifying")
-        await self.hass.async_add_executor_job(
-            self._client.set_dehumidifying, False,
-        )
+        await self._client.set_dehumidifying(False)
         self._merge_coordinator_data(
             dehumidifying_status="not dehumidifying",
         )

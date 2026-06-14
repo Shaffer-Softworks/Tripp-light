@@ -1,0 +1,7 @@
+# Minimal Home Assistant config for Tripp-light Docker dev/testing.
+default_config:
+
+logger:
+  default: info
+  logs:
+    custom_components.tripp_lite_srcool: debug
