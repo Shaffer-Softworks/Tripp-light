@@ -5,54 +5,25 @@ alwaysApply: false
 
 # HACS Default Repository PR — Tripp-light
 
-## PR Details
+## Status: merged
 
-- **PR**: https://github.com/hacs/default/pull/7959
+- **PR**: https://github.com/hacs/default/pull/9630 (merged 2026-08-01; replaces closed #7959)
 - **Title**: Adds new integration [Shaffer-Softworks/Tripp-light]
+- **Catalog entry**: `"Shaffer-Softworks/Tripp-light"` in `integration` (after `Shaffer-Softworks/Openobserve`)
 - **Fork**: https://github.com/sickkick/HACS (branch: `add-tripp-lite-srcool`)
-- **Target**: `hacs/default` → `master`
-- **Reviewer**: @ludeeus (HACS maintainer)
+- **Reviewer**: @frenck
 
-## Repository Being Added
+## Install path (user-facing)
 
-- **Canonical repo (case-sensitive)**: `Shaffer-Softworks/Tripp-light` — https://github.com/Shaffer-Softworks/Tripp-light
-- **Do not use** `sickkick/Tripp-light` in `hacs/default` (reviewer flagged case/name mismatch)
-- **HACS file changed**: `integration` (JSON array, alphabetically sorted)
-- **Position**: after `Shaffer-Softworks/hyperhdr-ha`, before `shaiu/technicolor`
+Users install from the HACS default feed — search **Tripp Lite SRCOOL**. Do not document Custom repositories as the primary path.
 
-```json
-"Shaffer-Softworks/Tripp-light",
-```
+## Follow-ups from merge review
 
-## Workflow (fork sickkick/HACS)
+- Frenck: drop stray 1.7 MB root `icon.png` (duplicate of in-component brand assets) — done in post-merge repo update.
+- README: HACS Default badge + default-feed Installation section (same pattern as GlobalCache).
 
-```bash
-git clone https://github.com/sickkick/HACS.git
-cd HACS
-git remote add upstream https://github.com/hacs/default.git
-git fetch upstream master
-git checkout -B add-tripp-lite-srcool upstream/master
-# edit integration — one line, exact repo name
-git commit -m "Adds new integration [Shaffer-Softworks/Tripp-light]"
-git push -u origin add-tripp-lite-srcool
-gh pr create --repo hacs/default --head sickkick:add-tripp-lite-srcool --base master
-gh pr ready <number> --repo hacs/default
-```
+## History
 
-## PR body checklist (integrations)
-
-- Publishing docs, HACS action, hassfest action, CI passing, release link, brand note for HA 2026.3+
-- Links: `https://github.com/Shaffer-Softworks/Tripp-light/releases/tag/v0.5.3`, latest Actions run on `main`
-
-## Brand assets
-
-- `custom_components/tripp_lite_srcool/brand/` — `icon.png`, `icon@2x.png`, `logo.png`, `logo@2x.png`
-- Not in `home-assistant/brands`; local `brand/` per HA 2026.3+ custom integration guidance
-
-## If PR breaks after upstream merges
-
-Same as Android-Management (#5854): rebase branch on `upstream/master`, re-add the single `integration` line if lost (0 additions/0 deletions), force-push, mark **ready for review** again.
-
-## Fix applied (2026-05-24)
-
-Reviewer: repository name must match GitHub exactly. Replaced `sickkick/Tripp-light` with `Shaffer-Softworks/Tripp-light` in `integration` and updated PR title/body/links.
+- **2026-05-24**: Case mismatch `sickkick/Tripp-light` → `Shaffer-Softworks/Tripp-light`.
+- **2026-07-31**: Rebase after merge conflicts / lost `integration` line; LICENSE required in release → cut v1.0.1.
+- **2026-08-01**: #9630 approved and merged.

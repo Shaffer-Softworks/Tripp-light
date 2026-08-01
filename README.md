@@ -1,6 +1,9 @@
 # Tripp Lite SRCOOL Custom Integration
 
-![Tripp Lite SRCOOL Icon](icon.png)
+[![Validate](https://github.com/Shaffer-Softworks/Tripp-light/actions/workflows/validate.yaml/badge.svg)](https://github.com/Shaffer-Softworks/Tripp-light/actions/workflows/validate.yaml)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
+
+![Tripp Lite SRCOOL Icon](custom_components/tripp_lite_srcool/brand/icon.png)
 
 > Control and monitor your Tripp Lite portable air conditioner from Home Assistant over Telnet.
 
@@ -126,22 +129,19 @@ To show them: open the device page → **Device info** → enable **Show diagnos
 
 ## Installation
 
-### HACS (recommended)
+### Using HACS
 
-1. Open **HACS** → **Integrations** → **⋮** → **Custom repositories**.
-2. Add repository URL `https://github.com/Shaffer-Softworks/Tripp-light` and category **Integration**.
-3. Search for **Tripp Lite SRCOOL**, download, and restart Home Assistant.
-4. Go to **Settings** → **Devices & services** → **Add integration** → **Tripp Lite SRCOOL**.
+This integration is available in the [HACS default](https://github.com/hacs/default) feed. Search for **Tripp Lite SRCOOL** (or **Tripp-light**) and install it directly from HACS.
 
-### Manual
+See the [official HACS documentation](https://hacs.xyz/docs/) for how to install and use HACS.
 
-```bash
-mkdir -p config/custom_components
-git clone https://github.com/Shaffer-Softworks/Tripp-light.git /tmp/tripp-light
-cp -R /tmp/tripp-light/custom_components/tripp_lite_srcool config/custom_components/
-```
+Restart Home Assistant after installation, then go to **Settings → Devices & services → Add integration** and search for **Tripp Lite SRCOOL**.
 
-Restart Home Assistant, then add the integration from **Settings** → **Devices & services**.
+### Manually (not recommended)
+
+1. Download the [latest release](https://github.com/Shaffer-Softworks/Tripp-light/releases) and copy [`custom_components/tripp_lite_srcool`](custom_components/tripp_lite_srcool) into your Home Assistant `config/custom_components/` directory.
+2. Restart Home Assistant.
+3. Add the integration as above.
 
 ---
 
@@ -155,15 +155,6 @@ Restart Home Assistant, then add the integration from **Settings** → **Devices
 | Password | Telnet password |
 
 Use **Reconfigure** on the integration entry if credentials change. Reconfigure with **unchanged** credentials validates the existing session without opening a second connection. When credentials change, the live session disconnects briefly for validation, then the integration reloads. After upgrading to **0.6.0+**, reload the integration once so Home Assistant installs `telnetlib3`.
-
----
-
-## HACS repository settings (forks)
-
-Set on GitHub so HACS validation passes:
-
-- **Description:** e.g. “Home Assistant custom integration for Tripp Lite SRCOOLNET Remote Cooling Management over Telnet.”
-- **Topics:** `home-assistant`, `homeassistant`, `hacs`, `hacs-integration`
 
 ---
 

@@ -15,9 +15,8 @@ Home Assistant **custom integration** for the Tripp Lite **SRCOOLNET** SNMP Webc
 
 ## Distribution
 
-- **Canonical GitHub repo:** [Shaffer-Softworks/Tripp-light](https://github.com/Shaffer-Softworks/Tripp-light) (case-sensitive; use this name in `hacs/default` PRs).
-- **HACS default inclusion:** open PR [hacs/default#7959](https://github.com/hacs/default/pull/7959) via fork `sickkick/HACS` branch `add-tripp-lite-srcool`. See `.cursor/rules/hacs-default-pr.mdc`.
-- Until merged: users add via HACS → Integrations → Custom repositories → URL `https://github.com/Shaffer-Softworks/Tripp-light`, category **Integration**.
+- **Canonical GitHub repo:** [Shaffer-Softworks/Tripp-light](https://github.com/Shaffer-Softworks/Tripp-light) (case-sensitive).
+- **HACS default:** merged via [hacs/default#9630](https://github.com/hacs/default/pull/9630) — users install from the HACS default feed (search **Tripp Lite SRCOOL**). See `.cursor/rules/hacs-default-pr.mdc` for history.
 
 ## Repository layout
 
@@ -25,7 +24,7 @@ Home Assistant **custom integration** for the Tripp Lite **SRCOOLNET** SNMP Webc
 hacs.json                          # HACS manifest (root only)
 mypy.ini                           # mypy config for CI
 pytest.ini                         # pytest config
-README.md, icon.png                # README art; source for brand/ assets
+README.md                          # README art uses brand/icon.png
 .github/workflows/ci.yml
 docker/                            # dev HA compose + config (see docker/README.md)
 tests/                             # pytest suite
@@ -53,7 +52,7 @@ custom_components/tripp_lite_srcool/
 
 - Home Assistant **2026.3+** loads `custom_components/tripp_lite_srcool/brand/` automatically.
 - Required sizes (PNG): `icon.png` 256×256, `icon@2x.png` 512×512; optional `logo.png` / `logo@2x.png`.
-- Regenerate from repo root `icon.png` (1024×1024) with `sips -z`.
+- Do **not** keep a duplicate root `icon.png` (Frenck / hacs/default#9630).
 - Do **not** put `icon` in `manifest.json`; entity icons use `mdi:*` in platform code.
 
 ## Device behavior (critical)
@@ -204,5 +203,5 @@ Forks must set on GitHub or HACS validation fails:
 
 ## Out of scope unless requested
 
-- New or duplicate PRs to `hacs/default` (one open: #7959)
+- New or duplicate PRs to `hacs/default` (already merged: #9630)
 - PR to `home-assistant/brands` (local `brand/` preferred for custom repo)
