@@ -78,7 +78,7 @@ Do not add per-entity polling or `async_request_refresh()` after climate writes.
 | Unload | `await client.disconnect()` in `async_unload_entry` |
 | Climate writes | Direct `await client.*` (no executor); optimistic `coordinator.async_set_updated_data()`; no immediate refresh |
 | Startup | No `update_before_add`; one `async_config_entry_first_refresh()` |
-| Device registry | `identifiers={(DOMAIN, port_name)}` on climate + sensors |
+| Device registry | `identifiers={(DOMAIN, entry.entry_id)}` + MAC `connections`; entity unique_ids frozen at init via `entity_id_base()` (never `unknown_port`) |
 
 ## Diagnostics (sensors + coordinator)
 

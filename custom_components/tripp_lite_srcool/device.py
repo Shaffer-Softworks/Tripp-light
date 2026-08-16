@@ -38,11 +38,27 @@ def _device_name(data: dict) -> str:
     return "Tripp Lite SRCOOL"
 
 
+def entity_id_base(coordinator) -> str:
+    """Stable unique_id prefix — freeze at entity init, never recompute.
+
+    Prefer port_name when already known so existing installs keep registry
+    IDs. Fall back to config entry id — never a sentinel like
+    ``unknown_port`` (that created duplicate entities on later polls).
+    """
+    data = coordinator.data or {}
+    return data.get("port_name") or coordinator.config_entry.entry_id
+
+
 def build_device_info(coordinator) -> DeviceInfo:
-    """Build DeviceInfo from coordinator data and config entry."""
+    """Build DeviceInfo from coordinator data and config entry.
+
+    Device identifiers always use the config entry id so the registry
+    identity does not change when telnet fields (e.g. port_name) appear
+    after the first poll. MAC is attached as a connection so HA can merge
+    older devices that used port-based identifiers.
+    """
     data = coordinator.data or {}
     entry = coordinator.config_entry
-    port = data.get("port_name") or entry.entry_id
 
     connections: set[tuple[str, str]] = set()
     mac = data.get("mac_address")
@@ -53,7 +69,7 @@ def build_device_info(coordinator) -> DeviceInfo:
     config_url = f"http://{host}" if host else None
 
     return DeviceInfo(
-        identifiers={(DOMAIN, port)},
+        identifiers={(DOMAIN, entry.entry_id)},
         name=_device_name(data),
         manufacturer=_manufacturer(data.get("vendor")),
         model=data.get("product"),

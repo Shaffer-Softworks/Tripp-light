@@ -7,7 +7,7 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DIAGNOSTIC_ENTITY_KEYS, DIAGNOSTIC_KEYS, DOMAIN
-from .device import build_device_info
+from .device import build_device_info, entity_id_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,20 +79,14 @@ class SRCoolStatusSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = name
         self._attr_native_unit_of_measurement = unit
         self._attr_icon = icon
+        self._attr_unique_id = f"{entity_id_base(coordinator)}_{key}"
         if self._key in DIAGNOSTIC_KEYS | DIAGNOSTIC_ENTITY_KEYS:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        # Will be auto‑linked to the same device as other platform entities
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info shared with the climate entity."""
         return build_device_info(self.coordinator)
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID combining the port and the key."""
-        port = self.coordinator.data.get("port_name") or "unknown_port"
-        return f"{port}_{self._key}"
 
     @property
     def native_value(self):

@@ -6,7 +6,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .device import build_device_info
+from .device import build_device_info, entity_id_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,17 +34,14 @@ class SRCOOLDehumidifyingSwitch(CoordinatorEntity, SwitchEntity):
         """Initialize the dehumidifying switch."""
         super().__init__(coordinator)
         self._client = client
+        self._attr_unique_id = (
+            f"{entity_id_base(coordinator)}_dehumidifying"
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info shared with other platform entities."""
         return build_device_info(self.coordinator)
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID for this switch."""
-        port = self.coordinator.data.get("port_name") or "unknown_port"
-        return f"{port}_dehumidifying"
 
     @property
     def is_on(self) -> bool | None:
